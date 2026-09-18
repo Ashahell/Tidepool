@@ -26,6 +26,8 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=42)
     ap.add_argument("--eval-every", type=int, default=0)
     ap.add_argument("--eval-val", default="")
+    ap.add_argument("--epochs", type=int, default=0,
+                    help="shuffled passes over --data (0 = legacy single sorted pass)")
     args = ap.parse_args()
     torch.manual_seed(args.seed)
     try:
@@ -54,7 +56,17 @@ def main() -> None:
     failure = None
     t0 = time.time()
     try:
-        for chunk in iter_wikipedia_bytes(args.data):
+        def _chunks():
+            if args.epochs <= 0:
+                yield from iter_wikipedia_bytes(args.data)
+                return
+            from tmt.data import epoch_lines
+            for ep in range(args.epochs):
+                for line in epoch_lines(args.data, ep, args.seed):
+                    b = line.encode("utf-8", errors="ignore")
+                    if b:
+                        yield b
+        for chunk in _chunks():
             for i in range(len(chunk) - 1):
                 loss, _, _ = model.training_step(chunk[i], chunk[i + 1], i == len(chunk) - 2)
                 n += 1

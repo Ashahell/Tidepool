@@ -19,3 +19,14 @@ def test_load_val_bytes_limit(tmp_path):
     p = tmp_path / "v.bin"
     p.write_bytes(bytes(range(256)))
     assert load_val_bytes(str(p), 10) == bytes(range(10))
+
+def test_epoch_lines_deterministic_and_covering(tmp_path):
+    from tmt.data import epoch_lines
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "wiki_a").write_text("alpha\nbeta\ngamma\ndelta\n")
+    a = epoch_lines(str(src), epoch=0, seed=7)
+    b = epoch_lines(str(src), epoch=0, seed=7)
+    c = epoch_lines(str(src), epoch=1, seed=7)
+    assert a == b
+    assert sorted(a) == sorted(c) == ["alpha\n", "beta\n", "delta\n", "gamma\n"]
