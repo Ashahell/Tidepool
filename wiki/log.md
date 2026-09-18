@@ -1,6 +1,14 @@
 # Wiki Log
 
 ## [2026-09-18] lint | 2 issues found, 0 auto-fixed
+- Same 2 known false positives (weight line + hash substring); new run scores grep-verified in raw.
+
+## [2026-09-18] ingest | Dream-RSI Loop first live run
+- Disposition: Update
+- Raw: raw/tmt-torch/2026-09-18-rsi-smoke-run.md
+- Updated: Dream-RSI Loop
+
+## [2026-09-18] lint | 2 issues found, 0 auto-fixed
 - 2 fidelity suspects both judged false positives (prior weight line + commit-hash substring; literals grep-verified in raw).
 
 ## [2026-09-18] ingest | Dream-RSI Loop

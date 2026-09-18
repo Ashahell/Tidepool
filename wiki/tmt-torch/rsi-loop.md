@@ -1,7 +1,7 @@
 # Dream-RSI Loop
 
 > Sources: tmt-torch session record, 2026-09-18
-> Raw: [2026-09-18-rsi-loop-record](../../raw/tmt-torch/2026-09-18-rsi-loop-record.md)
+> Raw: [2026-09-18-rsi-loop-record](../../raw/tmt-torch/2026-09-18-rsi-loop-record.md); [2026-09-18-rsi-smoke-run](../../raw/tmt-torch/2026-09-18-rsi-smoke-run.md)
 > Updated: 2026-09-18
 
 ## Overview
@@ -23,6 +23,16 @@ score, so ties keep the incumbent. Rewriter backends are an
 OpenAI-compatible client (≤3 retries, env keys only) and an agent-session
 file flow. Smoke defaults run ≤8 configs over 2 rounds (budget_per_round
 0.08, grid dim [32, 64], layers [1]).
+
+## First Live Run
+
+On 2026-09-18 the loop ran end-to-end with real weights and real
+Vulkan4Aros bytes (wiki prose + C source): round 1 n=8
+best=-95.55782821967064 spend=0.080, round 2 n=8 best=-95.78051670751206
+spend=0.080, 16 nodes total. Scores are random-init baselines (no
+gradient training yet) — machinery validated, not model quality.
+Incumbent held both rounds (no rewrite reply existed). Known wart: both
+rounds' rewrite requests landed in round_1/rewrite_request.md.
 
 ## Execution Notes
 
