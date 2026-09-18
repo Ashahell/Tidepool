@@ -1,0 +1,14 @@
+dim: 128
+layers: 4
+temp: 0.75
+lr: 0.0001
+update_every: 1
+w_var: 1.0
+w_pred: 1.0
+w_ce: 1.0
+w_stop: 1.0
+decay_groups: 4
+grad_clip: 1.0
+seed: 42
+replay_size: 512
+replay_k: 1
