@@ -76,7 +76,7 @@ def test_reference_embedding_lookup():
 
 def test_forward_equivalence():
     torch.manual_seed(11)
-    cfg = TMTConfig(dim=4, layers=2)
+    cfg = TMTConfig(dim=4, layers=2, decay_groups=1)
     m = TMTModel(cfg)
     P = init_params(seed=11, dim=4, layers=2)
     m.load_numpy_params(P)
