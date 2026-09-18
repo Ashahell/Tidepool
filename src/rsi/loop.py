@@ -4,7 +4,7 @@ import json
 from pathlib import Path
 from .monitor import summarize_round
 from .replay import replay_score
-from .sandbox import PolicyRejected, load_policy
+from .sandbox import load_policy
 from .tree import DiscoveryTree, Node
 
 def _policy_source(policy) -> str:
@@ -64,7 +64,7 @@ def run_search(scorer, policy, budget_per_round: float, rounds: int,
                 cand = load_policy(code, type(incumbent))
                 rep = replay_score(cand, all_nodes, budget_per_round)
                 if rep["score"] is not None and (
-                        base["score"] is None or rep["score"] >= base["score"]):
+                        base["score"] is None or rep["score"] > base["score"]):
                     incumbent, incumbent_code, base = cand, code, rep
             except Exception as e:
                 feedback.append(f"{type(e).__name__}: {e}")
