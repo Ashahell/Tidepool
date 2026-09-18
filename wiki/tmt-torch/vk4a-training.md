@@ -1,7 +1,7 @@
 # Vulkan4Aros Training Data
 
 > Sources: tmt-torch session record, 2026-09-18
-> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-delivery](../../raw/tmt-torch/2026-09-18-replay-delivery.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-delivery](../../raw/tmt-torch/2026-09-18-priority-delivery.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md)
+> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-delivery](../../raw/tmt-torch/2026-09-18-replay-delivery.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-delivery](../../raw/tmt-torch/2026-09-18-priority-delivery.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md); [2026-09-18-noise-control](../../raw/tmt-torch/2026-09-18-noise-control.md)
 > Updated: 2026-09-18
 
 ## Overview
@@ -62,6 +62,13 @@ mistakes (overconfidence on hard/noisy bytes compounds) instead of
 smoothing them. Both replay shapes hurt; remaining candidates are
 reservoir/diverse sampling, EWC, or a different stabilizer (slower
 schedules, weight averaging).
+
+## Noise Control (Content Matters)
+
+Random-byte extra updates (same budget, no buffer content) end at 9.442:
+off 8.616 < random 9.442 < uniform 12.119 < priority 17.012. Update
+count alone costs ~0.8 bpb; content adds the rest. The effective-LR-only
+story is dead — recency bias and dig-into-mistakes survive the control.
 
 ## Replay Comparison (Negative Result)
 
