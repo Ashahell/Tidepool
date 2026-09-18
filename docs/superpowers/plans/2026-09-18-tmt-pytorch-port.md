@@ -97,7 +97,7 @@ class TMTConfig:
     @classmethod
     def from_yaml(cls, path: str) -> "TMTConfig":
         with open(path) as f:
-            data = yaml.safe_load() or {}
+            data = yaml.safe_load(f) or {}
         known = {k: v for k, v in data.items() if k in cls.__dataclass_fields__}
         return cls(**known)
 
