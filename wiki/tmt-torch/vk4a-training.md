@@ -1,7 +1,7 @@
 # Vulkan4Aros Training Data
 
 > Sources: tmt-torch session record, 2026-09-18
-> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md)
+> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md)
 > Updated: 2026-09-18
 
 ## Overview
@@ -12,6 +12,15 @@ wiki_* for the existing loader). First 20k-step run on dim-64/2-layer
 moved training loss 6.638 → 2.436 but scored bpb=10.247 (above the 8.0
 uniform baseline — miscalibrated, overconfident-wrong), mem=0.000,
 cont=0.000, stab=0.992. Machinery proven; model quality is day-zero.
+
+## Monitoring (Live)
+
+Train/val split is now disjoint (5% line tails). loss.csv carries
+per-component columns; the variance term sits at ~0 while CE does the
+work. Heartbeat state.json, NaN watchdog with emergency checkpoint,
+periodic held-out eval to eval.csv, curves.png plot. First monitored run:
+held-out bpb 7.862 → 7.490 over 300 steps (below uniform, improving).
+Full suite 37 passed.
 
 ## See Also
 

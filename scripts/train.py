@@ -3,13 +3,19 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 sys.path.insert(0, "src")
 from pathlib import Path
 import torch
 from tmt.config import TMTConfig
 from tmt.model import TMTModel
-from tmt.data import iter_wikipedia_bytes
-from tmt.engine import save_checkpoint, load_checkpoint, node_json
+from tmt.data import iter_wikipedia_bytes, load_val_bytes
+from tmt.engine import save_checkpoint, load_checkpoint, node_json, check_finite
+from tmt.evaluation_suite import EvalConfig, evaluate_model
+
+EVAL_PRESET = EvalConfig(max_bytes=2000, lm_eval_tokens=256, copy_lengths=[4],
+                         intervening_lengths=[8, 64], num_copy_trials=2,
+                         retention_eval_bytes=128)
 
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -18,6 +24,8 @@ def main() -> None:
     ap.add_argument("--ckpt", default="runs/model.safetensors")
     ap.add_argument("--data", default="wikipedia_clean")
     ap.add_argument("--seed", type=int, default=42)
+    ap.add_argument("--eval-every", type=int, default=0)
+    ap.add_argument("--eval-val", default="")
     args = ap.parse_args()
     torch.manual_seed(args.seed)
     try:
@@ -35,29 +43,62 @@ def main() -> None:
     need_header = not loss_path.exists() or loss_path.stat().st_size == 0
     lf = open(loss_path, "a")
     if need_header:
-        lf.write("step,loss\n")
+        lf.write("step,loss,l_var,l_pred,l_ce,l_stop,state_norm\n")
+    eval_path = Path("runs/eval.csv")
+    if args.eval_every > 0 and args.eval_val:
+        eval_bytes = load_val_bytes(args.eval_val)
+        if not eval_path.exists() or eval_path.stat().st_size == 0:
+            eval_path.write_text("step,bpb,mem,cont,stab,composite\n")
     n = 0
     min_loss = None
+    failure = None
+    t0 = time.time()
     try:
         for chunk in iter_wikipedia_bytes(args.data):
             for i in range(len(chunk) - 1):
                 loss, _, _ = model.training_step(chunk[i], chunk[i + 1], i == len(chunk) - 2)
                 n += 1
                 lv = float(loss.item())
+                comp = dict(getattr(model, "last_components", {}))
                 if min_loss is None or lv < min_loss:
                     min_loss = lv
-                lf.write(f"{n},{lv}\n")
+                lf.write(f"{n},{lv},{comp.get('l_var', 0.0)},{comp.get('l_pred', 0.0)},"
+                         f"{comp.get('l_ce', 0.0)},{comp.get('l_stop', 0.0)},"
+                         f"{comp.get('state_norm', 0.0)}\n")
+                if not check_finite({"loss": lv, **comp}):
+                    save_checkpoint(model, "runs/diverged.safetensors")
+                    failure = "diverged"
+                    print(f"DIVERGED at step {n}; emergency checkpoint saved.",
+                          flush=True)
+                    return
                 if n % 500 == 0:
                     lf.flush()
                     save_checkpoint(model, args.ckpt)
+                    el = time.time() - t0
+                    Path("runs/state.json").write_text(json.dumps({
+                        "step": n, "loss": lv, "components": comp,
+                        "bytes_per_sec": round(n / el, 1),
+                        "elapsed_s": round(el, 1)}))
+                if args.eval_every > 0 and args.eval_val and n % args.eval_every == 0:
+                    r = evaluate_model(model, eval_bytes, [eval_bytes],
+                                       cfg=EVAL_PRESET,
+                                       config_dict=cfg.to_dict(), gpu_hours=0.0)
+                    with open(eval_path, "a") as ef:
+                        ef.write(f"{n},{r.val_bpb:.4f},{r.long_range_score:.4f},"
+                                 f"{r.continual_score:.4f},{r.stability_score:.4f},"
+                                 f"{r.composite_score:.3f}\n")
+                    print(f"[eval] step={n} bpb={r.val_bpb:.3f} "
+                          f"composite={r.composite_score:.3f}", flush=True)
                 if n >= args.steps:
                     return
     finally:
         save_checkpoint(model, args.ckpt)
         lf.close()
-        node = node_json(cfg.to_dict(), {"min_loss": min_loss if min_loss is not None else 0.0}, 0.0, None, 0.0)
+        node = node_json(cfg.to_dict(), {"min_loss": min_loss if min_loss is not None else 0.0}, 0.0, failure, 0.0)
         Path("runs/node.json").parent.mkdir(parents=True, exist_ok=True)
         Path("runs/node.json").write_text(json.dumps(node, indent=2))
+        if failure:
+            sys.exit(1)
 
 if __name__ == "__main__":
     main()

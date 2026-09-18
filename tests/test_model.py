@@ -26,3 +26,14 @@ def test_training_step_runs():
     m = TMTModel(TMTConfig(dim=16, layers=1))
     loss, sampled, stop = m.training_step(65, 66, False)
     assert loss.numel() == 1 and 0 <= sampled <= 255 and 0.0 <= stop <= 1.0
+
+def test_training_step_reports_components():
+    import math
+    m = TMTModel(TMTConfig(dim=16, layers=1))
+    loss, _, _ = m.training_step(65, 66, False)
+    comp = m.last_components
+    assert set(comp) == {"l_var", "l_pred", "l_ce", "l_stop", "state_norm"}
+    assert all(math.isfinite(v) for v in comp.values())
+    assert comp["state_norm"] >= 0.0
+    total = comp["l_var"] + comp["l_pred"] + comp["l_ce"] + comp["l_stop"]
+    assert abs(total - float(loss.item())) < 1e-4

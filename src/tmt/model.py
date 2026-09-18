@@ -52,6 +52,7 @@ class TMTModel(nn.Module):
         self.layers = nn.ModuleList([RTULayer(cfg.dim) for _ in range(cfg.layers)])
         self.opt = torch.optim.AdamW(self.parameters(), lr=cfg.lr)
         self._accum = 0
+        self.last_components: dict = {}
 
     def reset(self) -> None:
         with torch.no_grad():
@@ -113,13 +114,25 @@ class TMTModel(nn.Module):
         ) * self.cfg.w_var
         if self.cfg.decay_groups > 1:
             loss = loss + 0.01 * self.decay_diversity_penalty()
+        t_pred = t_ce = t_stop = None
         if next_ is not None:
             with torch.no_grad():
                 tgt = self.encoder(torch.tensor([next_], dtype=torch.long))
-            loss = loss + self.cfg.w_pred * torch.mean((x - tgt) ** 2)
-            loss = loss + self.cfg.w_ce * (F.cross_entropy(logits.view(-1, 256), torch.tensor([next_])))
+            t_pred = self.cfg.w_pred * torch.mean((x - tgt) ** 2)
+            t_ce = self.cfg.w_ce * (F.cross_entropy(logits.view(-1, 256), torch.tensor([next_])))
             target_stop = torch.tensor([[1.0 if end else 0.0]])
-            loss = loss + self.cfg.w_stop * torch.mean((stop - target_stop) ** 2)
+            t_stop = self.cfg.w_stop * torch.mean((stop - target_stop) ** 2)
+            loss = loss + t_pred + t_ce + t_stop
+        with torch.no_grad():
+            parts = [t for t in (t_pred, t_ce, t_stop) if t is not None]
+            l_var = float((loss - sum(parts)).detach()) if parts else float(loss.detach())
+            self.last_components = {
+                "l_var": l_var,
+                "l_pred": float(t_pred.detach()) if t_pred is not None else 0.0,
+                "l_ce": float(t_ce.detach()) if t_ce is not None else 0.0,
+                "l_stop": float(t_stop.detach()) if t_stop is not None else 0.0,
+                "state_norm": float(sum(torch.linalg.norm(s).detach() for s in states)),
+            }
         self.opt.zero_grad()
         loss.backward()
         # RTRL trace update (matches MLX dummy-gradient correction).

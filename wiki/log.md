@@ -1,6 +1,14 @@
 # Wiki Log
 
 ## [2026-09-18] lint | 2 issues found, 0 auto-fixed
+- Both pre-existing false positives; updated article scoped clean.
+
+## [2026-09-18] ingest | Training monitor slice
+- Disposition: Update
+- Raw: raw/tmt-torch/2026-09-18-monitoring.md
+- Updated: Vulkan4Aros Training Data
+
+## [2026-09-18] lint | 2 issues found, 0 auto-fixed
 - Both pre-existing false positives; new article scoped clean.
 
 ## [2026-09-18] ingest | Vulkan4Aros Training Data

@@ -1,8 +1,13 @@
 # src/tmt/engine.py
 from __future__ import annotations
 from typing import Any, Dict, Optional
+import math
 import torch
 from safetensors.torch import save_file, load_file
+
+def check_finite(vals: dict) -> bool:
+    return all(isinstance(v, (int, float)) and math.isfinite(v)
+               for v in vals.values())
 
 def save_checkpoint(model, path: str) -> None:
     state = {f"m.{k}": v.cpu().clone() for k, v in model.state_dict().items()}
