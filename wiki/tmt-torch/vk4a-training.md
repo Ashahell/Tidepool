@@ -1,7 +1,7 @@
 # Vulkan4Aros Training Data
 
 > Sources: tmt-torch session record, 2026-09-18
-> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md)
+> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md)
 > Updated: 2026-09-18
 
 ## Overview
@@ -30,6 +30,14 @@ memorization plus miscalibration, the exact pathology the RSI loop's
 continual-learning search space (replay, LR, update_every,
 regularization) exists to fix. Throughput is fine; generalization is the
 bottleneck. Curves in runs/curves.png (gitignored).
+
+> **Status: Outdated** (2026-09-18)
+> The knob round cured it by hand: lr 1e-4 holds bpb flat-to-improving
+> (6.93 → 6.33, all below uniform), update_every 32 also stabilizes
+> (~7.4–7.8). The disease was step-size noise, not structural amnesia —
+> no architecture search needed. Baseline is now lr 1e-4; the RSI loop
+> stays parked until a structural residual appears. Tiny-20k showed one
+> late spike to 9.423 at step 20000 (unrepeated, no claim).
 
 ## See Also
 

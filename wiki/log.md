@@ -1,6 +1,14 @@
 # Wiki Log
 
 ## [2026-09-18] lint | 1 issues found, 0 auto-fixed
+- Known 610 B/s false positive only; updated article scoped clean.
+
+## [2026-09-18] ingest | Knob round cures overfitting by hand
+- Disposition: Update
+- Raw: raw/tmt-torch/2026-09-18-knob-round.md
+- Updated: Vulkan4Aros Training Data
+
+## [2026-09-18] lint | 1 issues found, 0 auto-fixed
 - 1 suspect (610 B/s vs raw 610.6 bytes_per_sec across line break) judged false positive; value verified in raw.
 
 ## [2026-09-18] ingest | Serious run 1 overfitting baseline
