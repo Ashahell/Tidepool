@@ -41,6 +41,11 @@ CUDA test, tolerant checkpoint loading, and the MLX-faithful trace update.
 Next: merge decision made (merged), then a first real training run and the
 Dream-RSI outer loop on top of the inner-loop scorer.
 
+> **Status: Outdated** (2026-09-18)
+> The outer loop is now built and merged ([Dream-RSI Loop](rsi-loop.md));
+> remaining next step is a first real smoke search, then scale-up by config.
+
 ## See Also
 
+- [Dream-RSI Loop](rsi-loop.md)
 - [Implementation plan](../../docs/superpowers/plans/2026-09-18-tmt-pytorch-port.md) (project doc, not a wiki article)
