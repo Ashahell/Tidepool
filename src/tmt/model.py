@@ -1,6 +1,7 @@
 # src/tmt/model.py
 from __future__ import annotations
 from typing import List, Optional, Tuple
+from collections import deque
 import math
 import torch
 import torch.nn as nn
@@ -53,6 +54,8 @@ class TMTModel(nn.Module):
         self.opt = torch.optim.AdamW(self.parameters(), lr=cfg.lr)
         self._accum = 0
         self.last_components: dict = {}
+        self.replay_buf = (deque(maxlen=cfg.replay_size)
+                           if cfg.replay_size > 0 else None)
 
     def reset(self) -> None:
         with torch.no_grad():
@@ -96,7 +99,7 @@ class TMTModel(nn.Module):
             temp = max(0.1, self.cfg.temp * (1.0 - self.cfg.temp * entropy))
             return int(torch.distributions.Categorical(logits=logits / temp).sample().item())
 
-    def training_step(self, curr: int, next_: Optional[int], end: bool):
+    def _update(self, curr: int, next_: Optional[int], end: bool):
         self.train()
         c = torch.tensor([curr], dtype=torch.long)
         enc = self.encoder(c)
@@ -126,7 +129,7 @@ class TMTModel(nn.Module):
         with torch.no_grad():
             parts = [t for t in (t_pred, t_ce, t_stop) if t is not None]
             l_var = float((loss - sum(parts)).detach()) if parts else float(loss.detach())
-            self.last_components = {
+            comp = {
                 "l_var": l_var,
                 "l_pred": float(t_pred.detach()) if t_pred is not None else 0.0,
                 "l_ce": float(t_ce.detach()) if t_ce is not None else 0.0,
@@ -151,7 +154,20 @@ class TMTModel(nn.Module):
             self.opt.step()
             self.opt.zero_grad()
             self._accum = 0
+        return loss.detach(), logits.detach(), stop.detach(), comp
+
+    def training_step(self, curr: int, next_: Optional[int], end: bool):
+        self.train()
+        loss, logits, stop, comp = self._update(curr, next_, end)
+        if self.replay_buf is not None:
+            self.replay_buf.append((curr, next_, end))
+            for _ in range(self.cfg.replay_k):
+                if not self.replay_buf:
+                    break
+                c, n, e = self.replay_buf[torch.randint(len(self.replay_buf), (1,)).item()]
+                self._update(c, n, e)
+        self.last_components = comp
         with torch.no_grad():
-            sampled = self._sample(logits.detach())
-            stop_v = float(stop.detach().item())
-        return loss.detach(), sampled, stop_v
+            sampled = self._sample(logits)
+            stop_v = float(stop.item())
+        return loss, sampled, stop_v

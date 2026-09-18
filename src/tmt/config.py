@@ -16,6 +16,8 @@ class TMTConfig:
     decay_groups: int = 4
     grad_clip: float = 1.0
     seed: int = 42
+    replay_size: int = 0
+    replay_k: int = 1
 
     @classmethod
     def from_yaml(cls, path: str) -> "TMTConfig":
