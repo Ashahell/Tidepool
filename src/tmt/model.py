@@ -1,0 +1,125 @@
+# src/tmt/model.py
+from __future__ import annotations
+from typing import List, Optional, Tuple
+import math
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+
+from .config import TMTConfig
+
+class Encoder(nn.Module):
+    def __init__(self, dim: int):
+        super().__init__()
+        self.embed = nn.Embedding(256, dim)
+
+    def forward(self, x: torch.LongTensor) -> torch.Tensor:
+        return self.embed(x)
+
+class ByteDecoder(nn.Module):
+    def __init__(self, dim: int):
+        super().__init__()
+        self.decode = nn.Linear(dim, 256)
+        self.stop = nn.Linear(dim, 1)
+
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
+        return self.decode(x), torch.sigmoid(self.stop(x))
+
+class RTULayer(nn.Module):
+    def __init__(self, dim: int):
+        super().__init__()
+        self.dim = dim
+        self.decay_bias = nn.Parameter(torch.zeros(dim))
+        self.norm = nn.LayerNorm(dim)
+        self.weights = nn.Linear(dim, dim, bias=False)
+        self.silu = nn.SiLU()
+        self.register_buffer("states", torch.zeros(1, dim))
+        self.register_buffer("decaytrace", torch.zeros(dim))
+        self.register_buffer("embedtrace", torch.zeros(256, dim))
+
+    def forward(self, enc: torch.Tensor, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
+        decay = torch.sigmoid(self.decay_bias)
+        state = decay * self.states + enc
+        out = x + self.silu(self.weights(self.norm(state)))
+        return out, state, decay
+
+class TMTModel(nn.Module):
+    def __init__(self, cfg: TMTConfig):
+        super().__init__()
+        self.cfg = cfg
+        self.encoder = Encoder(cfg.dim)
+        self.decoder = ByteDecoder(cfg.dim)
+        self.layers = nn.ModuleList([RTULayer(cfg.dim) for _ in range(cfg.layers)])
+        self.opt = torch.optim.AdamW(self.parameters(), lr=cfg.lr)
+        self._accum = 0
+
+    def reset(self) -> None:
+        with torch.no_grad():
+            for layer in self.layers:
+                layer.states.zero_()
+                layer.decaytrace.zero_()
+                layer.embedtrace.zero_()
+        self._accum = 0
+
+    def forward(self, x: torch.LongTensor):
+        enc = self.encoder(x)
+        h = enc
+        states: List[torch.Tensor] = []
+        for layer in self.layers:
+            h, state, _ = layer(enc, h)
+            states.append(state)
+        logits, stop = self.decoder(h)
+        return logits, states
+
+    def _sample(self, logits: torch.Tensor) -> int:
+        with torch.no_grad():
+            probs = F.softmax(logits.detach(), dim=-1)
+            entropy = float(-(probs * (probs + 1e-8).log()).sum() / math.log(256))
+            temp = max(0.1, self.cfg.temp * (1.0 - self.cfg.temp * entropy))
+            return int(torch.distributions.Categorical(logits=logits / temp).sample().item())
+
+    def training_step(self, curr: int, next_: Optional[int], end: bool):
+        self.train()
+        c = torch.tensor([curr], dtype=torch.long)
+        enc = self.encoder(c)
+        h = enc
+        states, decays = [], []
+        for layer in self.layers:
+            h, state, decay = layer(enc, h)
+            states.append(state)
+            decays.append(decay)
+        logits, stop = self.decoder(h)
+        x = h
+        loss = torch.maximum(
+            torch.tensor(0.0),
+            1.0 - torch.sqrt(x.var(unbiased=False) + 1e-4),
+        ) * self.cfg.w_var
+        if next_ is not None:
+            with torch.no_grad():
+                tgt = self.encoder(torch.tensor([next_], dtype=torch.long))
+            loss = loss + self.cfg.w_pred * torch.mean((x - tgt) ** 2)
+            loss = loss + self.cfg.w_ce * (F.cross_entropy(logits.view(-1, 256), torch.tensor([next_])))
+            target_stop = torch.tensor([[1.0 if end else 0.0]])
+            loss = loss + self.cfg.w_stop * torch.mean((stop - target_stop) ** 2)
+        self.opt.zero_grad()
+        loss.backward()
+        # RTRL trace update (matches MLX dummy-gradient correction).
+        with torch.no_grad():
+            for i, layer in enumerate(self.layers):
+                d = decays[i].detach()
+                s = states[i].detach()
+                one_hot = torch.zeros_like(layer.embedtrace)
+                one_hot[curr] += 1.0
+                layer.embedtrace.mul_(d).add_(one_hot)
+                layer.decaytrace.mul_(d).add_(d * (1.0 - d) * layer.states.squeeze(0))
+                layer.states.copy_(s)
+        torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.grad_clip)
+        self._accum += 1
+        if self._accum >= self.cfg.update_every:
+            self.opt.step()
+            self.opt.zero_grad()
+            self._accum = 0
+        with torch.no_grad():
+            sampled = self._sample(logits.detach())
+            stop_v = float(stop.detach().item())
+        return loss.detach(), sampled, stop_v
