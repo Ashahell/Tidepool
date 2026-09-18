@@ -14,6 +14,19 @@ def iter_wikipedia_bytes(root: str = "wikipedia_clean") -> Iterator[bytes]:
                 if b:
                     yield b
 
+def skip_bytes(root: str = "wikipedia_clean", n: int = 0) -> Iterator[bytes]:
+    """Yield the byte stream of iter_wikipedia_bytes one byte at a time,
+    dropping the first n bytes. Offset-counted across chunks, O(1) memory."""
+    skip = max(0, int(n))
+    for chunk in iter_wikipedia_bytes(root):
+        if skip >= len(chunk):
+            skip -= len(chunk)
+            continue
+        start = skip
+        skip = 0
+        for i in range(start, len(chunk)):
+            yield chunk[i:i + 1]
+
 def load_val_bytes(path: str, limit: int = 20000) -> bytes:
     data = Path(path).read_bytes()[:limit]
     return data

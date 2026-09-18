@@ -16,7 +16,9 @@ def test_checkpoint_roundtrip(tmp_path):
 def test_node_json_shape():
     from tmt.engine import node_json
     n = node_json({"dim": 16}, {"val_bpb": 5.0}, 0.1, None)
-    assert set(n) == {"config", "final_metrics", "composite_score", "failure_mode", "cost"}
+    assert {"config", "final_metrics", "composite_score", "failure_mode", "cost"} <= set(n)
+    assert {"run_id", "timestamp", "git_commit", "steps", "bytes_seen"} <= set(n)
+    assert n["steps"] == 0 and n["bytes_seen"] == 0
 
 def test_check_finite():
     from tmt.engine import check_finite

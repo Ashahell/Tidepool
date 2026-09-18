@@ -301,6 +301,11 @@ class TMTModel(nn.Module):
                     p.copy_(saved[n])
 
     def training_step(self, curr: int, next_: Optional[int], end: bool):
+        for name, v in (("curr", curr), ("next", next_)):
+            if v is None and name == "next":
+                continue
+            if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 255:
+                raise ValueError(f"{name} byte out of range [0, 255]: {v!r}")
         self.train()
         loss, logits, stop, comp = self._update(curr, next_, end)
         if self.replay_buf is not None:

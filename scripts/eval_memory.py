@@ -8,7 +8,8 @@ from pathlib import Path
 from tmt.config import TMTConfig
 from tmt.model import TMTModel
 from tmt.data import load_val_bytes
-from tmt.engine import load_checkpoint, node_json
+from tmt.engine import (load_checkpoint, node_json, new_run_id,
+                      utc_timestamp, git_commit_short)
 from tmt.evaluation_suite import EvalConfig, evaluate_model, save_eval_result
 
 def main() -> None:
@@ -35,7 +36,9 @@ def main() -> None:
     with ema_ctx:
         r = evaluate_model(model, val, [val], cfg=eval_cfg, config_dict=cfg.to_dict(), gpu_hours=0.0)
     print(f"bpb={r.val_bpb:.3f} mem={r.long_range_score:.3f} cont={r.continual_score:.3f} stab={r.stability_score:.3f} composite={r.composite_score:.3f} fail={r.failure_mode}")
-    node = node_json(cfg.to_dict(), r.raw_metrics, 0.0, r.failure_mode, r.composite_score)
+    node = node_json(cfg.to_dict(), r.raw_metrics, 0.0, r.failure_mode, r.composite_score,
+                     run_id=new_run_id(), timestamp=utc_timestamp(),
+                     git_commit=git_commit_short())
     Path("runs/node.json").parent.mkdir(parents=True, exist_ok=True)
     Path("runs/node.json").write_text(json.dumps(node, indent=2))
     save_eval_result(r, Path("runs/eval_result.json"))

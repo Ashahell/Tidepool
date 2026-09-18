@@ -9,8 +9,10 @@ from pathlib import Path
 import torch
 from tmt.config import TMTConfig
 from tmt.model import TMTModel
-from tmt.data import iter_wikipedia_bytes, load_val_bytes
-from tmt.engine import save_checkpoint, load_checkpoint, node_json, check_finite
+from tmt.data import iter_wikipedia_bytes, load_val_bytes, skip_bytes
+from tmt.engine import (save_checkpoint, load_checkpoint, node_json,
+                        check_finite, new_run_id, utc_timestamp,
+                        git_commit_short)
 from tmt.evaluation_suite import EvalConfig, evaluate_model
 
 EVAL_PRESET = EvalConfig(max_bytes=2000, lm_eval_tokens=256, copy_lengths=[4],
@@ -28,6 +30,8 @@ def main() -> None:
     ap.add_argument("--eval-val", default="")
     ap.add_argument("--epochs", type=int, default=0,
                     help="shuffled passes over --data (0 = legacy single sorted pass)")
+    ap.add_argument("--resume", action="store_true",
+                    help="load checkpoint meta and seek bytes_seen before training")
     args = ap.parse_args()
     torch.manual_seed(args.seed)
     try:
@@ -38,7 +42,9 @@ def main() -> None:
     cfg = TMTConfig.from_yaml(args.config)
     model = TMTModel(cfg)
     model.init_decay_groups()
-    load_checkpoint(model, args.ckpt)
+    meta = load_checkpoint(model, args.ckpt, allow_missing=True) or {}
+    resume_from = int(meta.get("bytes_seen", 0)) if args.resume else 0
+    run_id, started_at, commit = new_run_id(), utc_timestamp(), git_commit_short()
     Path(args.ckpt).parent.mkdir(parents=True, exist_ok=True)
     loss_path = Path("runs/loss.csv")
     loss_path.parent.mkdir(parents=True, exist_ok=True)
@@ -51,12 +57,22 @@ def main() -> None:
         eval_bytes = load_val_bytes(args.eval_val)
         if not eval_path.exists() or eval_path.stat().st_size == 0:
             eval_path.write_text("step,bpb,mem,cont,stab,composite\n")
-    n = 0
+    n = resume_from
     min_loss = None
     failure = None
     t0 = time.time()
     try:
         def _chunks():
+            if args.resume and resume_from > 0 and args.epochs <= 0:
+                buf = bytearray()
+                for b in skip_bytes(args.data, resume_from):
+                    buf += b
+                    if b == b"\n":
+                        yield bytes(buf)
+                        buf = bytearray()
+                if buf:
+                    yield bytes(buf)
+                return
             if args.epochs <= 0:
                 yield from iter_wikipedia_bytes(args.data)
                 return
@@ -111,7 +127,9 @@ def main() -> None:
     finally:
         save_checkpoint(model, args.ckpt)
         lf.close()
-        node = node_json(cfg.to_dict(), {"min_loss": min_loss if min_loss is not None else 0.0}, 0.0, failure, 0.0)
+        node = node_json(cfg.to_dict(), {"min_loss": min_loss if min_loss is not None else 0.0}, 0.0, failure, 0.0,
+                         run_id=run_id, timestamp=started_at, git_commit=commit,
+                         steps=n, bytes_seen=n)
         Path("runs/node.json").parent.mkdir(parents=True, exist_ok=True)
         Path("runs/node.json").write_text(json.dumps(node, indent=2))
         if failure:
