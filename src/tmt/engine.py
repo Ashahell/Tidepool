@@ -25,6 +25,28 @@ def load_checkpoint(model, path: str) -> None:
             layer.decaytrace.copy_(data[f"trace_decay.{i}"])
             layer.embedtrace.copy_(data[f"trace_embed.{i}"])
 
+def gen_bytes(model, seed_byte: int, max_bytes: int = 256, stop_threshold: float = 0.35) -> bytes:
+    out = bytearray()
+    b = int(seed_byte) % 256
+    with torch.no_grad():
+        for _ in range(max_bytes):
+            # Same computation as model.forward, but keeps the decoder
+            # input so the stop head can be read for termination.
+            x = torch.tensor([b], dtype=torch.long)
+            enc = model.encoder(x)
+            h = enc
+            for layer in model.layers:
+                h, _, _ = layer(enc, h)
+            logits, stop = model.decoder(h)
+            nxt = int(torch.argmax(logits[0]).item())
+            out.append(nxt & 0xFF)
+            if nxt == 10:
+                break
+            if float(stop.item()) > stop_threshold:
+                break
+            b = nxt
+    return bytes(out)
+
 def node_json(config: dict, metrics: dict, gpu_hours: float, failure: Optional[str], composite: float = 0.0) -> Dict[str, Any]:
     return {
         "config": config,

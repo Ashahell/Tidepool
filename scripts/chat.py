@@ -6,7 +6,7 @@ sys.path.insert(0, "src")
 import torch
 from tmt.config import TMTConfig
 from tmt.model import TMTModel
-from tmt.engine import load_checkpoint, save_checkpoint
+from tmt.engine import load_checkpoint, save_checkpoint, gen_bytes
 
 def main() -> None:
     ap = argparse.ArgumentParser()
@@ -31,16 +31,8 @@ def main() -> None:
                     _, b, _ = model.training_step(data[i], data[i + 1], False) if not args.readonly else (None, int(torch.argmax(model(torch.tensor([data[i]], dtype=torch.long))[0][0]).item()), 0.0)
             b = data[-1]
             print("Model >> ", end="", flush=True)
-            while True:
-                with torch.no_grad():
-                    logits, _ = model(torch.tensor([b], dtype=torch.long))
-                import torch.nn.functional as F
-                probs = F.softmax(logits, dim=-1)
-                b = int(torch.argmax(probs[0]).item())
-                sys.stdout.buffer.write(bytes([b]))
-                sys.stdout.flush()
-                if len(data) > 64:
-                    break
+            sys.stdout.buffer.write(gen_bytes(model, b))
+            sys.stdout.flush()
             print()
     finally:
         if not args.readonly:
