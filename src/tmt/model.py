@@ -131,7 +131,18 @@ class TMTModel(nn.Module):
                 layer.embedtrace.zero_()
         self._accum = 0
 
-    def init_decay_groups(self, half_lives=[8.0, 64.0, 512.0, 4000.0]):
+    def init_decay_groups(self, half_lives=None):
+        if half_lives is None:
+            if self.cfg.decay_groups == 4:
+                half_lives = [8.0, 64.0, 512.0, 4000.0]
+            else:
+                g = self.cfg.decay_groups
+                # log-spaced half-lives between 8 and 4000
+                half_lives = [math.exp(math.log(8.0) + (math.log(4000.0) - math.log(8.0)) * i / (g - 1))
+                              for i in range(g)] if g > 1 else [8.0]
+        elif len(half_lives) != self.cfg.decay_groups:
+            raise ValueError(
+                f"half_lives length {len(half_lives)} != decay_groups {self.cfg.decay_groups}")
         with torch.no_grad():
             for layer in self.layers:
                 dim = layer.dim
@@ -158,11 +169,14 @@ class TMTModel(nn.Module):
         logits, stop = self.decoder(h)
         return logits, states
 
+    def _adaptive_temp(self, entropy: float) -> float:
+        return max(0.1, self.cfg.temp * (1.0 - self.cfg.temp * entropy))
+
     def _sample(self, logits: torch.Tensor) -> int:
         with torch.no_grad():
             probs = F.softmax(logits.detach(), dim=-1)
             entropy = float(-(probs * (probs + 1e-8).log()).sum() / math.log(256))
-            temp = max(0.1, self.cfg.temp * (1.0 - self.cfg.temp * entropy))
+            temp = self._adaptive_temp(entropy)
             return int(torch.distributions.Categorical(logits=logits / temp).sample().item())
 
     def _update(self, curr: int, next_: Optional[int], end: bool):
@@ -179,6 +193,8 @@ class TMTModel(nn.Module):
             s.retain_grad()
         logits, stop = self.decoder(h)
         x = h
+        # Activation-scale regularizer: forces per-token feature variance
+        # toward >= 1 (population var across dim of the single-token state).
         loss = torch.maximum(
             torch.tensor(0.0),
             1.0 - torch.sqrt(x.var(unbiased=False) + 1e-4),
@@ -204,6 +220,8 @@ class TMTModel(nn.Module):
                 "l_stop": float(t_stop.detach()) if t_stop is not None else 0.0,
                 "state_norm": float(sum(torch.linalg.norm(s).detach() for s in states)),
             }
+        # update_every is sequential accumulation across evolving timesteps,
+        # NOT a minibatch: never detach/reset state at accumulation boundaries.
         if self._accum == 0:
             self.opt.zero_grad()
         loss.backward()
