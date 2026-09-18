@@ -268,7 +268,7 @@ class TMTModel(nn.Module):
 
     def training_step(self, curr: int, next_: Optional[int], end: bool):
         self.train()
-        c = torch.tensor([[curr]], dtype=torch.long)
+        c = torch.tensor([curr], dtype=torch.long)
         enc = self.encoder(c)
         h = enc
         states, decays = [], []
@@ -284,7 +284,7 @@ class TMTModel(nn.Module):
         ) * self.cfg.w_var
         if next_ is not None:
             with torch.no_grad():
-                tgt = self.encoder(torch.tensor([[next_]], dtype=torch.long))
+                tgt = self.encoder(torch.tensor([next_], dtype=torch.long))
             loss = loss + self.cfg.w_pred * torch.mean((x - tgt) ** 2)
             loss = loss + self.cfg.w_ce * (F.cross_entropy(logits.view(-1, 256), torch.tensor([next_])))
             target_stop = torch.tensor([[1.0 if end else 0.0]])
