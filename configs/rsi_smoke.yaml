@@ -1,0 +1,9 @@
+budget_per_round: 0.08
+rounds: 2
+n_revisions: 1
+seed: 42
+grid:
+  dim: [32, 64]
+  layers: [1]
+  update_every: [1]
+  lr: [0.0005]
