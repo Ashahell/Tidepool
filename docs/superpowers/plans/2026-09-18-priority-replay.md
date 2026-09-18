@@ -25,7 +25,7 @@
 - `src/tmt/config.py` — gains `replay_alpha: float = 1.0`.
 - `src/tmt/model.py` — gains `_replay_indices`, 4-tuple entries, refresh write-back.
 - `configs/rsi_smoke.yaml` — grid gains `replay_alpha: [0.0, 1.0]`.
-- Tests: `tests/test_replay.py` (3 appended tests + 1 head-assertion update), `tests/test_rsi_loop.py` (1 appended test).
+- Tests: `tests/test_replay.py` (4 appended tests + 1 head-assertion update), `tests/test_rsi_loop.py` (1 appended test).
 
 ---
 
