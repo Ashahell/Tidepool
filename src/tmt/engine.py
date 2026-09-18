@@ -115,7 +115,9 @@ def load_checkpoint(model, path: str, allow_missing: bool = False) -> dict:
         model.ema_state = {k: v.clone() for k, v in ema.items() if k in names}
     state_path = _P(base + ".state.pt")
     if not state_path.exists():
-        return {}
+        if allow_missing:
+            return {}
+        raise FileNotFoundError(f"checkpoint state not found: {state_path}")
     payload = torch.load(str(state_path), map_location="cpu", weights_only=False)
     model.opt.load_state_dict(payload["optimizer"])
     model._accum = int(payload.get("accum", 0))

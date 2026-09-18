@@ -96,14 +96,16 @@ def main() -> None:
                          f"{comp.get('l_ce', 0.0)},{comp.get('l_stop', 0.0)},"
                          f"{comp.get('state_norm', 0.0)}\n")
                 if not check_finite({"loss": lv, **comp}):
-                    save_checkpoint(model, "runs/diverged.safetensors")
+                    save_checkpoint(model, "runs/diverged.safetensors",
+                                    meta={"step": n, "bytes_seen": n, "cursor_bytes": n})
                     failure = "diverged"
                     print(f"DIVERGED at step {n}; emergency checkpoint saved.",
                           flush=True)
                     return
                 if n % 500 == 0:
                     lf.flush()
-                    save_checkpoint(model, args.ckpt)
+                    save_checkpoint(model, args.ckpt,
+                                    meta={"step": n, "bytes_seen": n, "cursor_bytes": n})
                     el = time.time() - t0
                     Path("runs/state.json").write_text(json.dumps({
                         "step": n, "loss": lv, "components": comp,
@@ -125,7 +127,8 @@ def main() -> None:
                 if n >= args.steps:
                     return
     finally:
-        save_checkpoint(model, args.ckpt)
+        save_checkpoint(model, args.ckpt,
+                        meta={"step": n, "bytes_seen": n, "cursor_bytes": n})
         lf.close()
         node = node_json(cfg.to_dict(), {"min_loss": min_loss if min_loss is not None else 0.0}, 0.0, failure, 0.0,
                          run_id=run_id, timestamp=started_at, git_commit=commit,
