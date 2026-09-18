@@ -1,7 +1,7 @@
 # Dream-RSI Loop
 
 > Sources: tmt-torch session record, 2026-09-18
-> Raw: [2026-09-18-rsi-loop-record](../../raw/tmt-torch/2026-09-18-rsi-loop-record.md); [2026-09-18-rsi-smoke-run](../../raw/tmt-torch/2026-09-18-rsi-smoke-run.md)
+> Raw: [2026-09-18-rsi-loop-record](../../raw/tmt-torch/2026-09-18-rsi-loop-record.md); [2026-09-18-rsi-smoke-run](../../raw/tmt-torch/2026-09-18-rsi-smoke-run.md); [2026-09-18-real-scorer](../../raw/tmt-torch/2026-09-18-real-scorer.md)
 > Updated: 2026-09-18
 
 ## Overview
@@ -33,6 +33,14 @@ spend=0.080, 16 nodes total. Scores are random-init baselines (no
 gradient training yet) — machinery validated, not model quality.
 Incumbent held both rounds (no rewrite reply existed). Known wart: both
 rounds' rewrite requests landed in round_1/rewrite_request.md.
+
+## Real-Training Scorer (Live)
+
+The scorer now trains each config (default 2000 steps on the train
+split) and reports measured gpu_hours — no more stub costs, so replay
+budgets account real spend. Proof round: n=8 best=-73.14682381448415
+spend=0.004, ~22 points above random-init. The loop can now hunt
+continual-learning rules for real.
 
 ## Execution Notes
 
