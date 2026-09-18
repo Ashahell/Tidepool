@@ -2,6 +2,7 @@
 from __future__ import annotations
 from typing import List, Optional, Tuple
 from collections import deque
+from contextlib import contextmanager
 import math
 import torch
 import torch.nn as nn
@@ -54,6 +55,7 @@ class TMTModel(nn.Module):
         self.opt = torch.optim.AdamW(self.parameters(), lr=cfg.lr)
         self._accum = 0
         self.last_components: dict = {}
+        self.ema_state = None
         self.replay_buf = (deque(maxlen=cfg.replay_size)
                             if cfg.replay_size > 0 else None)
 
@@ -169,7 +171,36 @@ class TMTModel(nn.Module):
             self.opt.step()
             self.opt.zero_grad()
             self._accum = 0
+            self._ema_track()
         return loss.detach(), logits.detach(), stop.detach(), comp
+
+    @torch.no_grad()
+    def _ema_track(self):
+        if self.cfg.ema_decay <= 0.0:
+            return
+        if self.ema_state is None:
+            self.ema_state = {n: p.detach().clone()
+                              for n, p in self.named_parameters()}
+            return
+        d = self.cfg.ema_decay
+        for n, p in self.named_parameters():
+            self.ema_state[n].mul_(d).add_(p.detach(), alpha=1.0 - d)
+
+    @contextmanager
+    def using_ema(self):
+        if self.ema_state is None:
+            yield
+            return
+        saved = {n: p.detach().clone() for n, p in self.named_parameters()}
+        try:
+            with torch.no_grad():
+                for n, p in self.named_parameters():
+                    p.copy_(self.ema_state[n])
+            yield
+        finally:
+            with torch.no_grad():
+                for n, p in self.named_parameters():
+                    p.copy_(saved[n])
 
     def training_step(self, curr: int, next_: Optional[int], end: bool):
         self.train()

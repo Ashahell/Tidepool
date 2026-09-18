@@ -23,3 +23,20 @@ def test_check_finite():
     assert check_finite({"loss": 1.0, "l_ce": 0.5}) is True
     assert check_finite({"loss": float("nan")}) is False
     assert check_finite({"loss": float("inf")}) is False
+
+def test_ema_checkpoint_roundtrip(tmp_path):
+    import torch
+    from tmt.config import TMTConfig
+    from tmt.model import TMTModel
+    m = TMTModel(TMTConfig(dim=16, layers=1, ema_decay=0.9))
+    m.training_step(65, 66, False)
+    m.training_step(67, 68, False)
+    assert m.ema_state is not None
+    p = str(tmp_path / "e.safetensors")
+    save_checkpoint(m, p)
+    m2 = TMTModel(TMTConfig(dim=16, layers=1, ema_decay=0.9))
+    assert m2.ema_state is None
+    load_checkpoint(m2, p)
+    assert set(m2.ema_state) == set(m.ema_state)
+    for k in m.ema_state:
+        assert torch.equal(m.ema_state[k], m2.ema_state[k])

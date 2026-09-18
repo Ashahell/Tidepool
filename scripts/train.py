@@ -80,9 +80,12 @@ def main() -> None:
                         "bytes_per_sec": round(n / el, 1),
                         "elapsed_s": round(el, 1)}))
                 if args.eval_every > 0 and args.eval_val and n % args.eval_every == 0:
-                    r = evaluate_model(model, eval_bytes, [eval_bytes],
-                                       cfg=EVAL_PRESET,
-                                       config_dict=cfg.to_dict(), gpu_hours=0.0)
+                    from contextlib import nullcontext
+                    ema_ctx = model.using_ema() if model.ema_state is not None else nullcontext()
+                    with ema_ctx:
+                        r = evaluate_model(model, eval_bytes, [eval_bytes],
+                                           cfg=EVAL_PRESET,
+                                           config_dict=cfg.to_dict(), gpu_hours=0.0)
                     with open(eval_path, "a") as ef:
                         ef.write(f"{n},{r.val_bpb:.4f},{r.long_range_score:.4f},"
                                  f"{r.continual_score:.4f},{r.stability_score:.4f},"

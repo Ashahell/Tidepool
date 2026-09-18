@@ -19,6 +19,7 @@ class TMTConfig:
     replay_size: int = 0
     replay_k: int = 1
     replay_noise: bool = False
+    ema_decay: float = 0.0
     replay_alpha: float = 1.0
 
     @classmethod

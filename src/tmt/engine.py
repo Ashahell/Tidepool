@@ -15,6 +15,9 @@ def save_checkpoint(model, path: str) -> None:
         state[f"trace_state.{i}"] = layer.states.cpu().clone()
         state[f"trace_decay.{i}"] = layer.decaytrace.cpu().clone()
         state[f"trace_embed.{i}"] = layer.embedtrace.cpu().clone()
+    if getattr(model, "ema_state", None):
+        for k, v in model.ema_state.items():
+            state[f"ema.{k}"] = v.cpu().clone()
     save_file(state, path)
 
 def load_checkpoint(model, path: str) -> None:
@@ -29,6 +32,10 @@ def load_checkpoint(model, path: str) -> None:
             layer.states.copy_(data[f"trace_state.{i}"])
             layer.decaytrace.copy_(data[f"trace_decay.{i}"])
             layer.embedtrace.copy_(data[f"trace_embed.{i}"])
+    ema = {k[4:]: v for k, v in data.items() if k.startswith("ema.")}
+    if ema:
+        names = {n for n, _ in model.named_parameters()}
+        model.ema_state = {k: v.clone() for k, v in ema.items() if k in names}
 
 def gen_bytes(model, seed_byte: int, max_bytes: int = 256, stop_threshold: float = 0.35) -> bytes:
     out = bytearray()
