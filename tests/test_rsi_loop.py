@@ -36,3 +36,8 @@ def test_summarize_round_shape():
 def test_loop_accepts_replay_configs(tmp_path):
     grid = yaml.safe_load(open("configs/rsi_smoke.yaml"))["grid"]
     assert grid["replay_size"] == [0, 64] and grid["replay_k"] == [1]
+
+def test_loop_accepts_replay_alpha():
+    import yaml
+    grid = yaml.safe_load(open("configs/rsi_smoke.yaml"))["grid"]
+    assert grid["replay_alpha"] == [0.0, 1.0]
