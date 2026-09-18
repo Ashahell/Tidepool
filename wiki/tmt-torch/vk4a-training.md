@@ -1,7 +1,7 @@
 # Vulkan4Aros Training Data
 
 > Sources: tmt-torch session record, 2026-09-18
-> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-delivery](../../raw/tmt-torch/2026-09-18-replay-delivery.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-delivery](../../raw/tmt-torch/2026-09-18-priority-delivery.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md); [2026-09-18-noise-control](../../raw/tmt-torch/2026-09-18-noise-control.md)
+> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-delivery](../../raw/tmt-torch/2026-09-18-replay-delivery.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-delivery](../../raw/tmt-torch/2026-09-18-priority-delivery.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md); [2026-09-18-noise-control](../../raw/tmt-torch/2026-09-18-noise-control.md); [2026-09-18-ema-comparison](../../raw/tmt-torch/2026-09-18-ema-comparison.md)
 > Updated: 2026-09-18
 
 ## Overview
@@ -42,7 +42,7 @@ bottleneck. Curves in runs/curves.png (gitignored).
 ## Long Run (200k): Cure Expires, Loop Un-Parked
 
 lr 1e-4 held bpb flat (6.3535–7.4096) only to ~40k steps, then degraded slowly
-to 18.1 by 200k, while train loss kept falling (8.47 → 5.58) and
+to 18.115 by 200k, while train loss kept falling (8.47217845916748 → 5.57870626449585) and
 stability stayed ~1.0. Retention died first (continual 0.32 → 0.0 by
 75k). Low LR delayed the disease; it did not cure it. This slow
 forgetting-plus-miscalibration is structural — the RSI loop's replay /
@@ -70,6 +70,14 @@ off 8.616 < random 9.442 < uniform 12.119 < priority 17.012. Update
 count alone costs ~0.8 bpb; content adds the rest. The effective-LR-only
 story is dead — recency bias and dig-into-mistakes survive the control.
 
+## EMA Comparison (Negative Result)
+
+Averaged-weight eval ties baseline at 60k (8.534 vs 8.616) and ends
+worse at 200k (20.398 vs 18.115). Averaging noisy weights follows the
+same decay. Nothing tried holds past ~40k: uniform replay, priority
+replay, EMA all fail; low LR only delays. Untried: reservoir diversity,
+EWC, slower schedules, bigger models.
+
 ## Replay Comparison (Negative Result)
 
 60k-step fair pair: replay ON (size 512, k 1) never beats OFF at any of
@@ -81,9 +89,11 @@ prioritization, or EWC.
 ## Replay Buffer (Landed, Untested Against Forgetting)
 
 In-model recency deque (`replay_size`, `replay_k`), shared accumulation,
-live-only monitoring, off-path bit-identical. Merged; 41/41 green. The
-replay-on/off bpb comparison run has not happened yet — that experiment
-decides whether the buffer moves the 40k forgetting wall.
+live-only monitoring, off-path bit-identical. Merged; 41/41 green.
+
+> **Status: Outdated** (2026-09-18)
+> The comparison has run since: uniform replay ends 3.5 bpb worse (see
+> Replay Comparison above); prioritized ends 8.4 worse.
 
 ## See Also
 
