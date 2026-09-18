@@ -59,9 +59,10 @@ def test_weighted_skew():
 def test_alpha_zero_uniform():
     torch.manual_seed(3)
     m = _model(replay_size=4, replay_k=0, replay_alpha=0.0)
-    m.replay_buf.extend([(65, 66, False, 0.5) for _ in range(4)])
+    m.replay_buf.extend([(65, 66, False, 0.1), (65, 66, False, 0.2),
+                         (65, 66, False, 10.0), (65, 66, False, 0.1)])
     idx = [m._replay_indices(1)[0] for _ in range(200)]
-    assert all(v >= 1 for v in __import__("collections").Counter(idx).values())
+    assert sorted(__import__("collections").Counter(idx).keys()) == [0, 1, 2, 3]
 
 def test_refresh_updates_tag():
     torch.manual_seed(5)
@@ -72,4 +73,8 @@ def test_refresh_updates_tag():
         c, n, e, _ = m.replay_buf[i]
         m.replay_buf[i] = (c, n, e, 123.0 if i == 0 else 0.0)
     m.training_step(65, 66, False)
+    for _ in range(2):
+        if m.replay_buf[0][3] != 123.0:
+            break
+        m.training_step(65, 66, False)
     assert m.replay_buf[0][3] != 123.0

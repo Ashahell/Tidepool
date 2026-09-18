@@ -59,6 +59,8 @@ class TMTModel(nn.Module):
 
     def _replay_indices(self, k: int) -> list[int]:
         buf = self.replay_buf
+        if not buf:
+            return []
         tags = torch.tensor([t[3] for t in buf], dtype=torch.float)
         if bool((tags == tags[0]).all()):
             probs = torch.full((len(buf),), 1.0 / len(buf))
