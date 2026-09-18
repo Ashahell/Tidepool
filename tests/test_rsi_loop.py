@@ -2,6 +2,7 @@ from rsi.loop import run_search
 from rsi.monitor import summarize_round
 from rsi.policy import InitialParallelRefine
 from rsi.rewriter import PolicyRewriter
+import yaml
 
 def mock_scorer(config):
     return {"config": config, "final_metrics": {},
@@ -31,3 +32,7 @@ def test_summarize_round_shape():
              {"composite": None, "cost": {"gpu_hours": 0.0}}]
     assert summarize_round(1, nodes, "p") == {
         "round": 1, "policy_id": "p", "n": 2, "best": 2.0, "spend": 0.1}
+
+def test_loop_accepts_replay_configs(tmp_path):
+    grid = yaml.safe_load(open("configs/rsi_smoke.yaml"))["grid"]
+    assert grid["replay_size"] == [0, 64] and grid["replay_k"] == [1]

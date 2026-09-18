@@ -7,3 +7,5 @@ grid:
   layers: [1]
   update_every: [1]
   lr: [0.0005]
+  replay_size: [0, 64]
+  replay_k: [1]
