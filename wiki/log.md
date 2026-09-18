@@ -1,5 +1,13 @@
 # Wiki Log
 
+## [2026-09-18] lint | 1 issues found, 0 auto-fixed
+- 1 suspect (610 B/s vs raw 610.6 bytes_per_sec across line break) judged false positive; value verified in raw.
+
+## [2026-09-18] ingest | Serious run 1 overfitting baseline
+- Disposition: Update
+- Raw: raw/tmt-torch/2026-09-18-serious-run-1.md
+- Updated: Vulkan4Aros Training Data
+
 ## [2026-09-18] lint | 2 issues found, 0 auto-fixed
 - Both pre-existing false positives; updated article scoped clean.
 

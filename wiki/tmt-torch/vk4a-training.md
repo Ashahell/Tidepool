@@ -1,7 +1,7 @@
 # Vulkan4Aros Training Data
 
 > Sources: tmt-torch session record, 2026-09-18
-> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md)
+> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md)
 > Updated: 2026-09-18
 
 ## Overview
@@ -21,6 +21,15 @@ work. Heartbeat state.json, NaN watchdog with emergency checkpoint,
 periodic held-out eval to eval.csv, curves.png plot. First monitored run:
 held-out bpb 7.862 → 7.490 over 300 steps (below uniform, improving).
 Full suite 37 passed.
+
+## Serious Run 1 (Overfitting Baseline)
+
+dim-128/4-layer, 30k steps in 49 s (610 B/s): training loss fell while
+held-out bpb rose 6.660 → 14.301 monotonically after ~2k steps —
+memorization plus miscalibration, the exact pathology the RSI loop's
+continual-learning search space (replay, LR, update_every,
+regularization) exists to fix. Throughput is fine; generalization is the
+bottleneck. Curves in runs/curves.png (gitignored).
 
 ## See Also
 
