@@ -18,6 +18,7 @@ class TMTConfig:
     seed: int = 42
     replay_size: int = 0
     replay_k: int = 1
+    replay_noise: bool = False
     replay_alpha: float = 1.0
 
     @classmethod

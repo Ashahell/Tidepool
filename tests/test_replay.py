@@ -78,3 +78,15 @@ def test_refresh_updates_tag():
             break
         m.training_step(65, 66, False)
     assert m.replay_buf[0][3] != 123.0
+
+def test_random_replay_runs_and_differs():
+    a = _model(replay_size=0)
+    b = _model(replay_size=16, replay_k=1, replay_noise=True)
+    assert b.replay_buf is not None
+    for i in range(5):
+        torch.manual_seed(2)
+        a.training_step(65 + i, 66, False)
+        torch.manual_seed(2)
+        b.training_step(65 + i, 66, False)
+    assert any(not torch.equal(pa, pb) for pa, pb in zip(a.parameters(), b.parameters()))
+    assert all(torch.isfinite(p).all() for p in b.parameters())

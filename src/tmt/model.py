@@ -177,10 +177,16 @@ class TMTModel(nn.Module):
         if self.replay_buf is not None:
             self.replay_buf.append((curr, next_, end, float(loss)))
             if self.cfg.replay_k > 0:
-                for idx in self._replay_indices(self.cfg.replay_k):
-                    c, n, e, _ = self.replay_buf[idx]
-                    rloss, _, _, _ = self._update(c, n, e)
-                    self.replay_buf[idx] = (c, n, e, float(rloss))
+                if self.cfg.replay_noise:
+                    for _ in range(self.cfg.replay_k):
+                        c = int(torch.randint(0, 256, (1,)).item())
+                        n = int(torch.randint(0, 256, (1,)).item())
+                        self._update(c, n, False)
+                else:
+                    for idx in self._replay_indices(self.cfg.replay_k):
+                        c, n, e, _ = self.replay_buf[idx]
+                        rloss, _, _, _ = self._update(c, n, e)
+                        self.replay_buf[idx] = (c, n, e, float(rloss))
         self.last_components = comp
         with torch.no_grad():
             sampled = self._sample(logits)
