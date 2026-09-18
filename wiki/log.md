@@ -1,6 +1,13 @@
 # Wiki Log
 
 ## [2026-09-18] lint | 2 issues found, 0 auto-fixed
+- Both pre-existing false positives; new article scoped clean.
+
+## [2026-09-18] ingest | Vulkan4Aros Training Data
+- Disposition: New
+- Raw: raw/tmt-torch/2026-09-18-vk4a-training.md
+
+## [2026-09-18] lint | 2 issues found, 0 auto-fixed
 - Same 2 known false positives (weight line + hash substring); new run scores grep-verified in raw.
 
 ## [2026-09-18] ingest | Dream-RSI Loop first live run
