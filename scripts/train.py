@@ -67,6 +67,8 @@ def main() -> None:
                     if b:
                         yield b
         for chunk in _chunks():
+            if args.epochs > 0:
+                model.reset()
             for i in range(len(chunk) - 1):
                 loss, _, _ = model.training_step(chunk[i], chunk[i + 1], i == len(chunk) - 2)
                 n += 1
