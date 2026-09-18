@@ -7,6 +7,7 @@ from rsi.loop import run_search
 from rsi.monitor import print_summary
 from rsi.policy import InitialParallelRefine
 from rsi.rewriter import AgentPolicyRewriter
+from tmt.data import iter_wikipedia_bytes
 from tmt.evaluation_suite import EvalConfig, train_and_evaluate
 
 EVAL_PRESETS = {
@@ -31,6 +32,8 @@ def main() -> None:
     ap.add_argument("--continual", action="append", default=[],
                     help="file(s) for continual-retention domains (repeatable)")
     ap.add_argument("--eval-preset", default="smoke", choices=["smoke", "full"])
+    ap.add_argument("--train", default="data/vk4a_train")
+    ap.add_argument("--train-steps", type=int, default=2000)
     args = ap.parse_args()
     with open(args.config) as f:
         cfg = yaml.safe_load(f)
@@ -44,6 +47,19 @@ def main() -> None:
     cont = ([b"".join(load_bytes(p, 2048) for p in args.continual)[:4096]]
             if args.continual else [val])
     eval_cfg = EVAL_PRESETS[args.eval_preset]
+    train_blobs = []
+    for chunk in iter_wikipedia_bytes(args.train):
+        train_blobs.append(chunk)
+        if sum(len(c) for c in train_blobs) >= args.train_steps + 1:
+            break
+    train_bytes = b"".join(train_blobs)[: args.train_steps + 1]
+
+    def train_fn(model, config):
+        import time
+        t0 = time.time()
+        for i in range(min(args.train_steps, len(train_bytes) - 1)):
+            model.training_step(train_bytes[i], train_bytes[i + 1], False)
+        return (time.time() - t0) / 3600.0
     def scorer(config):
         from tmt.model import TMTModel
         from tmt.config import TMTConfig
@@ -56,8 +72,8 @@ def main() -> None:
         return train_and_evaluate(
             config, val, cont,
             build_fn=lambda c: model,
-            train_fn=lambda m, c: 0.0,
-            eval_cfg=eval_cfg) | {"cost": {"gpu_hours": 0.01}}
+            train_fn=train_fn,
+            eval_cfg=eval_cfg)
     summary = run_search(scorer, policy, budget, rounds,
                          cfg.get("n_revisions", 1),
                          AgentPolicyRewriter(f"{args.workdir}/round_1"),
