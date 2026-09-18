@@ -1,7 +1,7 @@
 # Vulkan4Aros Training Data
 
 > Sources: tmt-torch session record, 2026-09-18
-> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-delivery](../../raw/tmt-torch/2026-09-18-replay-delivery.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-delivery](../../raw/tmt-torch/2026-09-18-priority-delivery.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md); [2026-09-18-noise-control](../../raw/tmt-torch/2026-09-18-noise-control.md); [2026-09-18-ema-delivery](../../raw/tmt-torch/2026-09-18-ema-delivery.md); [2026-09-18-ema-comparison](../../raw/tmt-torch/2026-09-18-ema-comparison.md)
+> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-delivery](../../raw/tmt-torch/2026-09-18-replay-delivery.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-delivery](../../raw/tmt-torch/2026-09-18-priority-delivery.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md); [2026-09-18-noise-control](../../raw/tmt-torch/2026-09-18-noise-control.md); [2026-09-18-ema-delivery](../../raw/tmt-torch/2026-09-18-ema-delivery.md); [2026-09-18-ema-comparison](../../raw/tmt-torch/2026-09-18-ema-comparison.md); [2026-09-18-coverage-confound](../../raw/tmt-torch/2026-09-18-coverage-confound.md)
 > Updated: 2026-09-18
 
 ## Overview
@@ -43,7 +43,7 @@ bottleneck. Curves in runs/curves.png (gitignored).
 
 lr 1e-4 held bpb flat (6.3535–7.4096) only to ~40k steps, then degraded slowly
 to 18.115 by 200k, while train loss kept falling (8.47217845916748 → 5.57870626449585) and
-stability stayed ~1.0. Retention died first (continual 0.32 → 0.0 by
+stability stayed ~1.0. Retention died first (continual 0.3218 → 0.0 by
 75k). Low LR delayed the disease; it did not cure it. This slow
 forgetting-plus-miscalibration is structural — the RSI loop's replay /
 regularization search is un-parked.
@@ -76,6 +76,16 @@ Shadow params tracked per optimizer step (init-on-first, decay blend
 under no_grad); using_ema() swaps params only (state/buffers untouched)
 and restores; checkpoints persist ema_* keys; train eval auto-uses
 averaged weights when present, eval_memory takes --ema. 50/50 green.
+
+## Coverage Confound (Forgetting Unproven)
+
+Per-domain evals: off-200k prose 16.926 vs code 11.869, ema-200k prose
+20.629 vs code 14.759 — both degraded, prose worse. But 200k steps cover
+4.0 % of the corpus, all inside wiki_code: no long-run model ever saw
+prose in training. The decay curves confound forgetting with
+single-pass local overfitting under stream drift. All forgetting
+conclusions need re-measurement under multi-epoch shuffled coverage;
+epoch training is next, not another stabilizer.
 
 ## EMA Comparison (Negative Result)
 
