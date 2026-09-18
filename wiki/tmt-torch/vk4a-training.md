@@ -1,7 +1,7 @@
 # Vulkan4Aros Training Data
 
 > Sources: tmt-torch session record, 2026-09-18
-> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-delivery](../../raw/tmt-torch/2026-09-18-replay-delivery.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-delivery](../../raw/tmt-torch/2026-09-18-priority-delivery.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md); [2026-09-18-noise-control](../../raw/tmt-torch/2026-09-18-noise-control.md); [2026-09-18-ema-comparison](../../raw/tmt-torch/2026-09-18-ema-comparison.md)
+> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-delivery](../../raw/tmt-torch/2026-09-18-replay-delivery.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-delivery](../../raw/tmt-torch/2026-09-18-priority-delivery.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md); [2026-09-18-noise-control](../../raw/tmt-torch/2026-09-18-noise-control.md); [2026-09-18-ema-delivery](../../raw/tmt-torch/2026-09-18-ema-delivery.md); [2026-09-18-ema-comparison](../../raw/tmt-torch/2026-09-18-ema-comparison.md)
 > Updated: 2026-09-18
 
 ## Overview
@@ -69,6 +69,13 @@ Random-byte extra updates (same budget, no buffer content) end at 9.442:
 off 8.616 < random 9.442 < uniform 12.119 < priority 17.012. Update
 count alone costs ~0.8 bpb; content adds the rest. The effective-LR-only
 story is dead — recency bias and dig-into-mistakes survive the control.
+
+## EMA Delivery (Mechanics)
+
+Shadow params tracked per optimizer step (init-on-first, decay blend
+under no_grad); using_ema() swaps params only (state/buffers untouched)
+and restores; checkpoints persist ema_* keys; train eval auto-uses
+averaged weights when present, eval_memory takes --ema. 50/50 green.
 
 ## EMA Comparison (Negative Result)
 
