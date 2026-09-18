@@ -26,7 +26,8 @@
 - `src/tmt/config.py` — `TMTConfig` dataclass, `from_yaml`/`to_dict`, defaults match the 4.5M ref (`dim=512, layers=16, temp=0.75, lr=5e-4`).
 - `configs/base.yaml` — the same defaults in YAML.
 - `src/tmt/model.py` — `Encoder`, `ByteDecoder`, `RTULayer`, `TMTModel` (eval call + `training_step`).
-- `src/tmt/engine.py` — `train_loop`, `chat_loop`, `save_checkpoint`, `load_checkpoint`, `node_json`.
+- `src/tmt/engine.py` — `train_loop`, `chat_loop`, `save_checkpoint`, `load_checkpoint`, `node_json`, plus `gen_bytes(model, seed_byte, max_bytes=256, stop_threshold=0.35)` (bounded generation; added in final fix wave — chat.py's inline loop hung on short inputs).
+- `src/tmt/metrics.py` — thin re-export of the eval suite (`EvalConfig`, `EvalResult`, `ProbeResult`, `evaluate_model`, `train_and_evaluate`, `save/load_eval_result`) for the Dream-RSI scorer (added in final fix wave).
 - `src/tmt/data.py` — `iter_wikipedia_bytes`, `load_val_bytes`.
 - `scripts/train.py`, `scripts/chat.py`, `scripts/eval_memory.py` — thin CLIs.
 - `src/tmt/evaluation_suite.py` — EXISTS (frozen contract, do not change its model interface).
