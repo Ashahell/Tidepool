@@ -731,3 +731,20 @@ Expected: PASS (all files, 10+ tests).
 git add tests/test_gate.py
 git commit -m "test: add full CUDA + real-model eval gate"
 ```
+
+---
+
+## Findings to Date (2026-09-18; appended post-execution, informational only)
+
+Execution outcomes, not new requirements. Detail lives in `wiki/` + `raw/`.
+
+- Port + RSI loop + replay + EMA + monitoring all landed green (suite 51/51 at last count).
+- Training on vk4a bytes (3.8 MB prose + 1.4 MB code): tiny loss 6.64→2.44 over 20k; first bpb 10.25 (above uniform 8.0).
+- Knob round: lr 1e-4 holds bpb 6.93→6.33 flat (10k window); update_every 32 stabilizes ~7.4–7.8.
+- Long run (lr 1e-4, 200k): flat to ~40k, then slow decay to bpb 18.115; retention dies first (continual 0.3218→0 by 75k).
+- Coverage confound: 200k steps = 4.0% of corpus (code only); decay curves confounded by single-pass drift until multi-epoch + reset.
+- Replay uniform/priority/random at 60k: off 8.616 < random 9.442 < uniform 12.119 < priority 17.012. Extra updates cost ~0.8; content dominates.
+- EMA: ties at 60k (8.534 vs 8.616), worse at 200k (20.398 vs 18.115).
+- Per-line reset in epoch mode: bpb 6.261/5.367/6.262 at 20/40/60k vs 7.028/12.694/17.419 without; flat through 160k+ (6.3–8.2). Stale cross-line state was the acute poison.
+- Memory probes (copy-after-N) read 0.000 in every run: long-range retention unproven.
+- Standing verdict: two solved problems (step size, state hygiene); cures tried (replay ×3, EMA) all negative; next questions are multi-epoch coverage completion and genuine memory demonstration.
