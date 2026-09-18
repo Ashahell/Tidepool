@@ -9,13 +9,18 @@ from tests.mlx_reference import init_params, mlx_step
 
 def test_reference_embedding_lookup():
     P = init_params(seed=11, dim=4, layers=2)
-    assert np.max(np.abs(P["embed"][65] - P["embed"][65])) == 0.0
+    Q = init_params(seed=11, dim=4, layers=2)
     assert P["embed"].shape == (256, 4)
+    assert P["embed"].dtype == np.float64
+    assert np.max(np.abs(P["embed"] - Q["embed"])) == 0.0
+    assert np.max(np.abs(P["embed"][65] - Q["embed"][65])) == 0.0
 
 
 def test_forward_equivalence():
     torch.manual_seed(11)
-    cfg = TMTConfig(dim=4, layers=2)
+    # decay_groups=1: the decay-diversity penalty has no NumPy counterpart,
+    # so exclude it rather than rely on it being ~0.
+    cfg = TMTConfig(dim=4, layers=2, decay_groups=1)
     # update_every huge: training_step advances persistent buffers but never
     # takes an optimizer step (params stay exactly as loaded).
     cfg.update_every = 1000000

@@ -84,7 +84,7 @@ class TMTModel(nn.Module):
 
     def load_numpy_params(self, P: dict) -> None:
         """Copy float64 NumPy reference params into torch params; reset traces."""
-        import numpy as np  # noqa: F401  (documents the expected array type)
+        import numpy as np
 
         def _as(name, arr, shape):
             a = np.asarray(arr, dtype=np.float64)
