@@ -62,21 +62,12 @@ class TMTModel(nn.Module):
         self._accum = 0
 
     def init_decay_groups(self, half_lives=[8.0, 64.0, 512.0, 4000.0]):
-        # DEVIATION from plan Task-3 Step 3 (rationale in task-3-report.md):
-        # the specified targets 0.5**(1/h) cluster in [0.917, 0.9998] for
-        # these half-lives (spread 0.083), so they FAIL the plan's own
-        # test_decay_groups_spread (> 0.2) by construction. Map log-half-life
-        # linearly onto [0.5, ~1.0) instead: group count, round-robin
-        # assignment, timescale ordering, clamp, and logit copy are unchanged,
-        # and decay_bias stays learnable so training can recover exact values.
         with torch.no_grad():
             for layer in self.layers:
                 dim = layer.dim
                 g = len(half_lives)
                 idx = torch.arange(dim) % g
-                logs = torch.tensor([math.log(h) for h in half_lives])
-                span = (logs.max() - logs.min()).clamp_min(1e-6)
-                targets = 0.5 + 0.5 * (logs - logs.min()) / span
+                targets = torch.tensor([0.5 ** (1.0 / h) for h in half_lives])
                 chosen = targets[idx].clamp(1e-4, 1.0 - 1e-4)
                 layer.decay_bias.copy_(torch.log(chosen / (1.0 - chosen)))
 

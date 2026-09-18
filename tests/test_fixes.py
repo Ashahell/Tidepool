@@ -4,10 +4,19 @@ from tmt.config import TMTConfig
 from tmt.model import TMTModel
 
 def test_decay_groups_spread():
+    half_lives = [8.0, 64.0, 512.0, 4000.0]
     m = TMTModel(TMTConfig(dim=16, layers=1, decay_groups=4))
-    m.init_decay_groups([8.0, 64.0, 512.0, 4000.0])
+    m.init_decay_groups(half_lives)
     d = torch.sigmoid(m.layers[0].decay_bias).detach()
-    assert float(d.max() - d.min()) > 0.2
+    # One distinct value per group, ordered fast-decay -> slow-decay
+    # (shorter half-life -> smaller per-step decay).
+    expected = [0.5 ** (1.0 / h) for h in half_lives]
+    got = [float(d[i]) for i in range(4)]
+    assert len(set(round(v, 6) for v in d.tolist())) == 4
+    for g, e in zip(got, expected):
+        assert abs(g - e) < 1e-5
+    assert got == sorted(got)
+    assert float(d.max() - d.min()) > 0.05
 
 def test_reset_clears_state():
     m = TMTModel(TMTConfig(dim=16, layers=1))
