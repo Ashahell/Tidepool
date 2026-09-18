@@ -82,6 +82,55 @@ class TMTModel(nn.Module):
                 layer.embedtrace.zero_()
         self._accum = 0
 
+    def load_numpy_params(self, P: dict) -> None:
+        """Copy float64 NumPy reference params into torch params; reset traces."""
+        import numpy as np  # noqa: F401  (documents the expected array type)
+
+        def _as(name, arr, shape):
+            a = np.asarray(arr, dtype=np.float64)
+            if tuple(a.shape) != tuple(shape):
+                raise ValueError(f"{name}: expected shape {tuple(shape)}, got {tuple(a.shape)}")
+            return torch.from_numpy(a)
+
+        dim = self.cfg.dim
+        with torch.no_grad():
+            self.encoder.embed.weight.copy_(
+                _as("embed", P["embed"], (256, dim)).to(
+                    self.encoder.embed.weight.dtype))
+            if len(P["layers"]) != len(self.layers):
+                raise ValueError(
+                    f"layers: expected {len(self.layers)}, got {len(P['layers'])}")
+            for i, (L, layer) in enumerate(zip(P["layers"], self.layers)):
+                layer.decay_bias.copy_(
+                    _as(f"layers[{i}].decay", L["decay"], (dim,)).to(
+                        layer.decay_bias.dtype))
+                layer.weights.weight.copy_(
+                    _as(f"layers[{i}].weight", L["weight"], (dim, dim)).to(
+                        layer.weights.weight.dtype))
+                layer.norm.weight.copy_(
+                    _as(f"layers[{i}].ln_w", L["ln_w"], (dim,)).to(
+                        layer.norm.weight.dtype))
+                layer.norm.bias.copy_(
+                    _as(f"layers[{i}].ln_b", L["ln_b"], (dim,)).to(
+                        layer.norm.bias.dtype))
+            self.decoder.decode.weight.copy_(
+                _as("dec_w", P["dec_w"], (256, dim)).to(
+                    self.decoder.decode.weight.dtype))
+            self.decoder.decode.bias.copy_(
+                _as("dec_b", P["dec_b"], (256,)).to(
+                    self.decoder.decode.bias.dtype))
+            self.decoder.stop.weight.copy_(
+                _as("stop_w", P["stop_w"], (dim, 1)).t().to(
+                    self.decoder.stop.weight.dtype))
+            self.decoder.stop.bias.copy_(
+                _as("stop_b", P["stop_b"], (1,)).to(
+                    self.decoder.stop.bias.dtype))
+            for layer in self.layers:
+                layer.states.zero_()
+                layer.decaytrace.zero_()
+                layer.embedtrace.zero_()
+        self._accum = 0
+
     def init_decay_groups(self, half_lives=[8.0, 64.0, 512.0, 4000.0]):
         with torch.no_grad():
             for layer in self.layers:
