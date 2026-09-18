@@ -432,7 +432,7 @@ def test_config_validation(tmp_path):
                 dict(temp=0.0), dict(update_every=0), dict(decay_groups=-4),
                 dict(grad_clip=-1.0), dict(replay_size=-1)]:
         with pytest.raises(ValueError):
-            TMTConfig(**{"dim": 16, "layers": 1, **bad}})
+            TMTConfig(**{"dim": 16, "layers": 1, **bad})
 ```
 
 - [ ] **Step 4: Run test to verify it passes**
