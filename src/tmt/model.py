@@ -175,6 +175,8 @@ class TMTModel(nn.Module):
             h, state, decay = layer(enc, h)
             states.append(state)
             decays.append(decay)
+        for s in states:
+            s.retain_grad()
         logits, stop = self.decoder(h)
         x = h
         loss = torch.maximum(
@@ -202,8 +204,37 @@ class TMTModel(nn.Module):
                 "l_stop": float(t_stop.detach()) if t_stop is not None else 0.0,
                 "state_norm": float(sum(torch.linalg.norm(s).detach() for s in states)),
             }
-        self.opt.zero_grad()
+        if self._accum == 0:
+            self.opt.zero_grad()
         loss.backward()
+        # Gradient classification: embedding + decay_bias influence future
+        # steps through persistent state -> RTRL trace corrections below.
+        # weights/LayerNorm/decoder/stop-head affect only the current step
+        # -> plain autograd is exact, no correction.
+        # _rtrl_enabled (default True) is the Task 5 ablation gate.
+        # Decay accumulation rule: autograd already holds each step's DIRECT
+        # term dL_t/ds_t·d(1-d)·s_{t-1} (decay's only in-graph use is the
+        # state computation). The correction adds ONLY the recurrent part
+        # dL_t/ds_t·d·T_{t-1}; their sum is dL_t/ds_t·T_t, exactly the
+        # upstream overwrite term — but accumulated across steps instead of
+        # discarded. (Upstream overwrites because it steps every __call__;
+        # under accumulation, overwrite keeps the last step only.)
+        with torch.no_grad():
+            if getattr(self, "_rtrl_enabled", True):
+                for i, layer in enumerate(self.layers):
+                    dlds = states[i].grad.detach().squeeze(0)
+                    old_embed = layer.embedtrace.detach().clone()
+                    old_decay = torch.sigmoid(layer.decay_bias).detach()
+                    embed_corr = dlds * (old_embed * old_decay)
+                    if self.encoder.embed.weight.grad is not None:
+                        self.encoder.embed.weight.grad += embed_corr
+                    else:
+                        self.encoder.embed.weight.grad = embed_corr.clone()
+                    rec = (dlds * old_decay * layer.decaytrace.detach()).clone()
+                    if layer.decay_bias.grad is None:
+                        layer.decay_bias.grad = rec
+                    else:
+                        layer.decay_bias.grad += rec
         # RTRL trace update (matches MLX dummy-gradient correction).
         with torch.no_grad():
             for i, layer in enumerate(self.layers):
@@ -214,9 +245,9 @@ class TMTModel(nn.Module):
                 layer.embedtrace.mul_(d).add_(one_hot)
                 layer.decaytrace.mul_(d).add_(d * (1.0 - d) * layer.states.squeeze(0))
                 layer.states.copy_(s)
-        torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.grad_clip)
         self._accum += 1
         if self._accum >= self.cfg.update_every:
+            torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.grad_clip)
             self.opt.step()
             self.opt.zero_grad()
             self._accum = 0
