@@ -1,7 +1,7 @@
 # Vulkan4Aros Training Data
 
 > Sources: tmt-torch session record, 2026-09-18
-> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-delivery](../../raw/tmt-torch/2026-09-18-replay-delivery.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-delivery](../../raw/tmt-torch/2026-09-18-priority-delivery.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md); [2026-09-18-noise-control](../../raw/tmt-torch/2026-09-18-noise-control.md); [2026-09-18-ema-delivery](../../raw/tmt-torch/2026-09-18-ema-delivery.md); [2026-09-18-ema-comparison](../../raw/tmt-torch/2026-09-18-ema-comparison.md); [2026-09-18-coverage-confound](../../raw/tmt-torch/2026-09-18-coverage-confound.md); [2026-09-18-reset-interim](../../raw/tmt-torch/2026-09-18-reset-interim.md)
+> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-delivery](../../raw/tmt-torch/2026-09-18-replay-delivery.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-delivery](../../raw/tmt-torch/2026-09-18-priority-delivery.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md); [2026-09-18-noise-control](../../raw/tmt-torch/2026-09-18-noise-control.md); [2026-09-18-ema-delivery](../../raw/tmt-torch/2026-09-18-ema-delivery.md); [2026-09-18-ema-comparison](../../raw/tmt-torch/2026-09-18-ema-comparison.md); [2026-09-18-coverage-confound](../../raw/tmt-torch/2026-09-18-coverage-confound.md); [2026-09-18-reset-interim](../../raw/tmt-torch/2026-09-18-reset-interim.md); [2026-09-18-reset-extension](../../raw/tmt-torch/2026-09-18-reset-extension.md)
 > Updated: 2026-09-18
 
 ## Overview
@@ -117,11 +117,16 @@ live-only monitoring, off-path bit-identical. Merged; 41/41 green.
 Epoch mode now resets recurrent state per line (2-line change). Reset
 run evals at 20/40/60k: 6.261, 5.367, 6.262 — flat, best sustained
 numbers ever — vs no-reset 7.028, 12.694, 17.419 at the same steps.
-Stale cross-line state was the poison. Full 2-epoch reset curve pending;
-it decides whether forgetting is gone or merely slower. The stopped
-no-reset run's recovered tail (bpb 25.637 at 200k, 34.073 at 240k,
-silent harness death at 256500 steps with finite loss) is recorded in
-raw; its missing post-240k evals are a gap.
+Stale cross-line state was the poison. Reset is now standard in epoch mode. Full 2-epoch reset curve pending; it decides whether forgetting is gone or merely slower.
+
+## Reset Extension (160k, Still Flat)
+
+Extended curve through 160k steps: 80k 7.601, 100k 6.315, 120k 8.175,
+140k 6.786, 160k 6.367 — oscillating 6.3–8.2 with no monotonic decay,
+against no-reset 11–18 across the same span and climbing. Forgetting has
+not reappeared. (The stopped no-reset run's recovered tail — 25.637 at
+200k, 34.073 at 240k, silent harness death at 256500 steps with finite
+loss — leaves its post-240k evals a permanent gap.)
 
 ## See Also
 

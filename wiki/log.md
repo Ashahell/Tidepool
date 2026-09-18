@@ -3,6 +3,14 @@
 ## [2026-09-18] lint | 1 issues found, 0 auto-fixed
 - Known 610 B/s false positive only; updated article scoped clean.
 
+## [2026-09-18] ingest | Reset extension: flat through 160k
+- Disposition: Update
+- Raw: raw/tmt-torch/2026-09-18-reset-extension.md
+- Updated: Vulkan4Aros Training Data
+
+## [2026-09-18] lint | 1 issues found, 0 auto-fixed
+- Known 610 B/s false positive only; updated article scoped clean.
+
 ## [2026-09-18] ingest | Per-line reset confirms diagnosis
 - Disposition: Update
 - Raw: raw/tmt-torch/2026-09-18-reset-interim.md
