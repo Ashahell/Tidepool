@@ -575,14 +575,20 @@ import torch
 from tmt.evaluation_suite import EvalConfig, copy_memory_probe
 
 class _CountingOracle:
-    """Knows the single-cell protocol: feed copy_len target + inter_len
-    filler bytes, then emit. Subclasses decide what to emit."""
+    """Knows the single-cell protocol AND the probe's read+feedback shape:
+    generation does one dummy-0 read plus one feedback call per byte, and
+    only the read advances the emission counter. Sound because probe
+    targets are randint(32, 127) — never 0 — so in the gen phase
+    cur == 0 ⟺ dummy read. (Feed-phase returns are ignored by the probe.)
+    Suite stays frozen; the oracle adapts to its documented protocol."""
     def __init__(self, copy_len, inter_len):
         self.copy_len = copy_len
         self.inter_len = inter_len
         self.fed = []
+        self.emitted = 0
     def reset(self):
         self.fed = []
+        self.emitted = 0
     def _emit(self, g):
         raise NotImplementedError
     def __call__(self, x):
@@ -592,11 +598,13 @@ class _CountingOracle:
             logits = torch.full((1, 256), -1e9)
             logits[0, cur] = 0.0
             return logits, None
-        g = len(self.fed) - (self.copy_len + self.inter_len)
-        self.fed.append(cur)
-        logits = torch.full((1, 256), -1e9)
-        logits[0, self._emit(g)] = 0.0
-        return logits, None
+        if cur == 0:
+            g = self.emitted
+            self.emitted += 1
+            logits = torch.full((1, 256), -1e9)
+            logits[0, self._emit(g)] = 0.0
+            return logits, None
+        return torch.full((1, 256), -1e9), None
 
 class PerfectMemory(_CountingOracle):
     def _emit(self, g):
