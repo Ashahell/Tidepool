@@ -132,7 +132,7 @@ git commit -m "test: add MLX-equation NumPy reference with forward equivalence"
 
 **Interfaces:**
 - Consumes: `_update` from current code; `load_numpy_params` from Task 0.
-- Produces: corrected `_update` where `decay_bias.grad` is overwritten by `dlds * new_decaytrace` and `encoder.embed.grad` gains `Σ_layers dlds * (old_embedtrace * decay)`; all other grads pure single-step autograd.
+- Produces: corrected `_update` where `decay_bias.grad` accumulates `dlds * old_decay * old_decaytrace` (recurrent part; autograd's direct term is retained, summing exactly to the upstream overwrite term per step) and `encoder.embed.grad` gains `Σ_layers dlds * (old_embedtrace * decay)`; all other grads pure single-step autograd.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -233,6 +233,13 @@ In `_update`, after the layer loop add `state.retain_grad()` per state (write it
         # weights/LayerNorm/decoder/stop-head affect only the current step
         # -> plain autograd is exact, no correction.
         # _rtrl_enabled (default True) is the Task 5 ablation gate.
+        # Decay accumulation rule: autograd already holds each step's DIRECT
+        # term dL_t/ds_t·d(1-d)·s_{t-1} (decay's only in-graph use is the
+        # state computation). The correction adds ONLY the recurrent part
+        # dL_t/ds_t·d·T_{t-1}; their sum is dL_t/ds_t·T_t, exactly the
+        # upstream overwrite term — but accumulated across steps instead of
+        # discarded. (Upstream overwrites because it steps every __call__;
+        # under accumulation, overwrite keeps the last step only.)
         with torch.no_grad():
             if getattr(self, "_rtrl_enabled", True):
                 for i, layer in enumerate(self.layers):
@@ -240,8 +247,11 @@ In `_update`, after the layer loop add `state.retain_grad()` per state (write it
                     old_embed = layer.embedtrace.detach().clone()
                     old_decay = torch.sigmoid(layer.decay_bias).detach()
                     self.encoder.embed.weight.grad += dlds * (old_embed * old_decay)
-                    new_trace = old_decay * layer.decaytrace.detach() + old_decay * (1.0 - old_decay) * layer.states.detach().squeeze(0)
-                    layer.decay_bias.grad = (dlds * new_trace).clone()
+                    rec = (dlds * old_decay * layer.decaytrace.detach()).clone()
+                    if layer.decay_bias.grad is None:
+                        layer.decay_bias.grad = rec
+                    else:
+                        layer.decay_bias.grad += rec
 ```
 
 Then the existing trace-update block runs unchanged (it recomputes the same `new_trace` into `layer.decaytrace` — keep both computations; do not merge them, the grad correction must use pre-update traces).
