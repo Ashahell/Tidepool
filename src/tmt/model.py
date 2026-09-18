@@ -55,7 +55,20 @@ class TMTModel(nn.Module):
         self._accum = 0
         self.last_components: dict = {}
         self.replay_buf = (deque(maxlen=cfg.replay_size)
-                           if cfg.replay_size > 0 else None)
+                            if cfg.replay_size > 0 else None)
+
+    def _replay_indices(self, k: int) -> list[int]:
+        buf = self.replay_buf
+        tags = torch.tensor([t[3] for t in buf], dtype=torch.float)
+        if bool((tags == tags[0]).all()):
+            probs = torch.full((len(buf),), 1.0 / len(buf))
+        else:
+            w = torch.pow(torch.clamp(tags, min=0.0), self.cfg.replay_alpha)
+            tot = float(w.sum())
+            probs = w / tot if tot > 0.0 else torch.full((len(buf),), 1.0 / len(buf))
+        repl = k > len(buf)
+        out = torch.multinomial(probs, k if repl else min(k, len(buf)), replacement=repl).tolist()
+        return out if isinstance(out, list) else [out]
 
     def reset(self) -> None:
         with torch.no_grad():
@@ -160,12 +173,12 @@ class TMTModel(nn.Module):
         self.train()
         loss, logits, stop, comp = self._update(curr, next_, end)
         if self.replay_buf is not None:
-            self.replay_buf.append((curr, next_, end))
-            for _ in range(self.cfg.replay_k):
-                if not self.replay_buf:
-                    break
-                c, n, e = self.replay_buf[torch.randint(len(self.replay_buf), (1,)).item()]
-                self._update(c, n, e)
+            self.replay_buf.append((curr, next_, end, float(loss)))
+            if self.cfg.replay_k > 0:
+                for idx in self._replay_indices(self.cfg.replay_k):
+                    c, n, e, _ = self.replay_buf[idx]
+                    rloss, _, _, _ = self._update(c, n, e)
+                    self.replay_buf[idx] = (c, n, e, float(rloss))
         self.last_components = comp
         with torch.no_grad():
             sampled = self._sample(logits)

@@ -18,6 +18,7 @@ class TMTConfig:
     seed: int = 42
     replay_size: int = 0
     replay_k: int = 1
+    replay_alpha: float = 1.0
 
     @classmethod
     def from_yaml(cls, path: str) -> "TMTConfig":
