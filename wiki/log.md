@@ -1,6 +1,14 @@
 # Wiki Log
 
 ## [2026-09-18] lint | 1 issues found, 0 auto-fixed
+- Known 610 B/s false positive only; new section exact-valued and clean.
+
+## [2026-09-18] ingest | Long run: cure expires, loop un-parked
+- Disposition: Update
+- Raw: raw/tmt-torch/2026-09-18-long-run.md
+- Updated: Vulkan4Aros Training Data
+
+## [2026-09-18] lint | 1 issues found, 0 auto-fixed
 - Known 610 B/s false positive only; updated article scoped clean.
 
 ## [2026-09-18] ingest | Knob round cures overfitting by hand

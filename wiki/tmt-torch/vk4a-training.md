@@ -1,7 +1,7 @@
 # Vulkan4Aros Training Data
 
 > Sources: tmt-torch session record, 2026-09-18
-> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md)
+> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md)
 > Updated: 2026-09-18
 
 ## Overview
@@ -38,6 +38,15 @@ bottleneck. Curves in runs/curves.png (gitignored).
 > no architecture search needed. Baseline is now lr 1e-4; the RSI loop
 > stays parked until a structural residual appears. Tiny-20k showed one
 > late spike to 9.423 at step 20000 (unrepeated, no claim).
+
+## Long Run (200k): Cure Expires, Loop Un-Parked
+
+lr 1e-4 held bpb flat (6.3535–7.4096) only to ~40k steps, then degraded slowly
+to 18.1 by 200k, while train loss kept falling (8.47 → 5.58) and
+stability stayed ~1.0. Retention died first (continual 0.32 → 0.0 by
+75k). Low LR delayed the disease; it did not cure it. This slow
+forgetting-plus-miscalibration is structural — the RSI loop's replay /
+regularization search is un-parked.
 
 ## See Also
 
