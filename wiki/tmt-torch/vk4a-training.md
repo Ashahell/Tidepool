@@ -1,7 +1,7 @@
 # Vulkan4Aros Training Data
 
 > Sources: tmt-torch session record, 2026-09-18
-> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-delivery](../../raw/tmt-torch/2026-09-18-replay-delivery.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-delivery](../../raw/tmt-torch/2026-09-18-priority-delivery.md)
+> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-delivery](../../raw/tmt-torch/2026-09-18-replay-delivery.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-delivery](../../raw/tmt-torch/2026-09-18-priority-delivery.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md)
 > Updated: 2026-09-18
 
 ## Overview
@@ -48,11 +48,20 @@ stability stayed ~1.0. Retention died first (continual 0.32 → 0.0 by
 forgetting-plus-miscalibration is structural — the RSI loop's replay /
 regularization search is un-parked.
 
-## Prioritized Replay (Landed, Untested)
+## Prioritized Replay (Landed, Tested Negative)
 
 Loss-weighted sampling (alpha, default 1.0) with tag refresh and uniform
-fallback; live-only monitoring kept; 46/46 green. The priority-vs-off
-bpb comparison has not run yet.
+fallback; live-only monitoring kept; 46/46 green.
+
+## Priority Comparison (Negative Result)
+
+60k-step fair pair: priority ON tracks baseline to ~20k, then diverges
+upward from ~25k and ends 8.4 bpb worse (17.012 vs 8.616) — worse than
+uniform replay's 3.5-point loss. Replaying high-loss bytes digs into
+mistakes (overconfidence on hard/noisy bytes compounds) instead of
+smoothing them. Both replay shapes hurt; remaining candidates are
+reservoir/diverse sampling, EWC, or a different stabilizer (slower
+schedules, weight averaging).
 
 ## Replay Comparison (Negative Result)
 
