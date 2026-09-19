@@ -20,6 +20,13 @@ EVAL_PRESET = EvalConfig(max_bytes=2000, lm_eval_tokens=256, copy_lengths=[4],
                          intervening_lengths=[8, 64], num_copy_trials=2,
                          retention_eval_bytes=128)
 
+def ss_pick(rng, prob: float, prev, curr: int) -> int:
+    """Scheduled-sampling input choice: own prediction with prob, else truth."""
+    if prev is not None and prob > 0.0 and rng.random() < prob:
+        return int(prev)
+    return int(curr)
+
+
 def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("--config", default="configs/base.yaml")
@@ -37,6 +44,8 @@ def main() -> None:
                     help="share of lines replaced by copy-task episodes (epoch mode)")
     ap.add_argument("--copy-tiny", action="store_true",
                     help="tiny copy curriculum (payload 2-4, filler 0-4)")
+    ap.add_argument("--ss-prob", type=float, default=0.0,
+                    help="scheduled sampling: share of steps feeding the model's own prediction")
     args = ap.parse_args()
     torch.manual_seed(args.seed)
     try:
@@ -72,6 +81,8 @@ def main() -> None:
     min_loss = None
     failure = None
     t0 = time.time()
+    srng = random.Random(args.seed + 777)
+    prev_sampled = None
     try:
         def _chunks():
             if args.resume and resume_from > 0 and args.epochs <= 0:
@@ -106,8 +117,11 @@ def main() -> None:
         for chunk, is_episode in _chunks():
             if args.epochs > 0 or is_episode:
                 model.reset()
+                prev_sampled = None
             for i in range(len(chunk) - 1):
-                loss, _, _ = model.training_step(chunk[i], chunk[i + 1], i == len(chunk) - 2)
+                curr = ss_pick(srng, args.ss_prob, prev_sampled, chunk[i])
+                loss, sampled, _ = model.training_step(curr, chunk[i + 1], i == len(chunk) - 2)
+                prev_sampled = sampled
                 n += 1
                 lv = float(loss.item())
                 comp = dict(getattr(model, "last_components", {}))
