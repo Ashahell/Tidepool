@@ -27,12 +27,17 @@ def test_accumulates_four_gradients():
     r.opt.zero_grad()
     for i in range(4):
         r.training_step(65 + i, 66, False)
-    manual = [p.grad.detach().clone() for p in r.parameters()]
+    # Gate params are inert when selective=False: no graph path, no grad.
+    names = [n for n, _ in r.named_parameters()]
+    assert r.layers[0].gate_w.grad is None
+    manual = {n: p.grad.detach().clone() for n, p in r.named_parameters()
+              if p.grad is not None}
     torch.manual_seed(9)
     s = _fresh(update_every=4)
     s.opt.zero_grad()
-    for p, g in zip(s.parameters(), manual):
-        p.grad = g.clone()
+    for n, p in s.named_parameters():
+        if n in manual:
+            p.grad = manual[n].clone()
     torch.nn.utils.clip_grad_norm_(s.parameters(), s.cfg.grad_clip)
     s.opt.step()
     for a, b in zip(stepped, s.parameters()):
