@@ -178,6 +178,19 @@ def main() -> None:
                             model.ingest(post[j - 1])
                             st = model.layers[-1].states.detach().clone()
                     recall.train_step(st.detach(), int(t))
+            if is_episode and model.slots is not None and cfg.aux_mem_w > 0.0:
+                from tmt.data import QUERY_MARKER
+                pre, post = bytes(chunk).split(QUERY_MARKER)
+                model.reset()
+                with torch.no_grad():
+                    for b in pre + QUERY_MARKER:
+                        model.ingest(b)
+                    _, _ = model(torch.tensor([QUERY_MARKER[-1]], dtype=torch.long))
+                    h_state = model.layers[-1].states.detach().clone()
+                read_vec = model.slots.read(h_state)
+                tgt = model.encoder(torch.tensor([post[0]], dtype=torch.long)).detach()
+                aux = model.slots.retrieval_loss(read_vec, tgt)
+                (cfg.aux_mem_w * aux).backward()
             if n >= args.steps:
                 return
     finally:

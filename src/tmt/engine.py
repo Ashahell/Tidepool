@@ -154,7 +154,7 @@ def gen_bytes(model, seed_byte: int, max_bytes: int = 256, stop_threshold: float
             h = enc
             for layer in model.layers:
                 h, _, _ = layer(enc, h)
-            logits, stop = model.decoder(h)
+            logits, stop = model._decode(h)
             nxt = int(torch.argmax(logits[0]).item())
             out.append(nxt & 0xFF)
             if nxt == 10:

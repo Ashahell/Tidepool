@@ -9,6 +9,7 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .config import TMTConfig
+from .slots import SlotMemory
 
 class Encoder(nn.Module):
     def __init__(self, dim: int):
@@ -58,6 +59,11 @@ class TMTModel(nn.Module):
         self.encoder = Encoder(cfg.dim)
         self.decoder = ByteDecoder(cfg.dim)
         self.layers = nn.ModuleList([RTULayer(cfg.dim, cfg.selective) for _ in range(cfg.layers)])
+        # NOTE (task-1 deviation): slots/mem_head are created BEFORE the
+        # optimizer so AdamW owns the query/key/mem_head params; the brief's
+        # "after replay_buf lines" placement would leave them untrained.
+        self.slots = SlotMemory(cfg.dim, cfg.slots) if cfg.slots > 0 else None
+        self.mem_head = nn.Linear(2 * cfg.dim, 256) if cfg.slots > 0 else None
         self.opt = torch.optim.AdamW(self.parameters(), lr=cfg.lr)
         self._accum = 0
         self.last_components: dict = {}
@@ -87,6 +93,8 @@ class TMTModel(nn.Module):
                 layer.decaytrace.zero_()
                 layer.embedtrace.zero_()
                 layer.gatetrace.zero_()
+            if self.slots is not None:
+                self.slots.reset()
         self._accum = 0
 
     def load_numpy_params(self, P: dict) -> None:
@@ -173,8 +181,20 @@ class TMTModel(nn.Module):
         for layer in self.layers:
             h, state, _ = layer(enc, h)
             states.append(state)
-        logits, stop = self.decoder(h)
+        logits, stop = self._decode(h)
         return logits, states
+
+    def _decode(self, h: torch.Tensor):
+        if self.slots is None:
+            return self.decoder(h)
+        read_vec = self.slots.read(h)
+        logits = self.mem_head(torch.cat([h.squeeze(0), read_vec], dim=-1).unsqueeze(0))
+        _, stop = self.decoder(h)
+        return logits, stop
+
+    def _slot_write(self, h: torch.Tensor) -> None:
+        if self.slots is not None:
+            self.slots.write(h)
 
     def _adaptive_temp(self, entropy: float) -> float:
         return max(0.1, self.cfg.temp * (1.0 - self.cfg.temp * entropy))
@@ -198,8 +218,10 @@ class TMTModel(nn.Module):
             decays.append(decay)
         for s in states:
             s.retain_grad()
-        logits, stop = self.decoder(h)
+        logits, stop = self._decode(h)
         x = h
+        # Slot write AFTER decode: read-before-write per step.
+        self._slot_write(h)
         # Activation-scale regularizer: forces per-token feature variance
         # toward >= 1 (population var across dim of the single-token state).
         loss = torch.maximum(
@@ -368,4 +390,6 @@ class TMTModel(nn.Module):
         for layer in self.layers:
             h, state, _ = layer(enc, h)
             layer.states.copy_(state)
-        return self.decoder(h)
+        logits, stop = self._decode(h)
+        self._slot_write(h)
+        return logits, stop

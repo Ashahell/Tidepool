@@ -23,6 +23,8 @@ class TMTConfig:
     recall_hidden: int = 0
     selective: bool = False
     replay_alpha: float = 1.0
+    slots: int = 0
+    aux_mem_w: float = 0.0
 
     def __post_init__(self):
         for name in ("dim", "layers", "lr", "temp", "update_every",
