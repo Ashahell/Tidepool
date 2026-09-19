@@ -9,8 +9,8 @@ import torch.nn.functional as F
 class SlotMemory(nn.Module):
     """Content-addressed sidecar store. Read-before-write per step.
 
-    Documented split: writes are a non-learned Hebbian cache (in-place
-    buffer updates, no gradient); reads learn through query/key
+    Documented split: writes are a non-learned Hebbian cache (rebind
+    (out-of-place) cache, no gradient); reads learn through query/key
     projections every step. Temperature fixed at 1.0 (v1).
     """
 

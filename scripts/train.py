@@ -185,7 +185,6 @@ def main() -> None:
                 with torch.no_grad():
                     for b in pre + QUERY_MARKER:
                         model.ingest(b)
-                    _, _ = model(torch.tensor([QUERY_MARKER[-1]], dtype=torch.long))
                     h_state = model.layers[-1].states.detach().clone()
                 read_vec = model.slots.read(h_state)
                 tgt = model.encoder(torch.tensor([post[0]], dtype=torch.long)).detach()
