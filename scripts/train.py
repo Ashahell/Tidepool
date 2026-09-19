@@ -49,13 +49,14 @@ def main() -> None:
     resume_from = int(meta.get("bytes_seen", 0)) if args.resume else 0
     run_id, started_at, commit = new_run_id(), utc_timestamp(), git_commit_short()
     Path(args.ckpt).parent.mkdir(parents=True, exist_ok=True)
-    loss_path = Path("runs/loss.csv")
+    run_dir = Path(args.ckpt).parent
+    loss_path = run_dir / "loss.csv"
     loss_path.parent.mkdir(parents=True, exist_ok=True)
     need_header = not loss_path.exists() or loss_path.stat().st_size == 0
     lf = open(loss_path, "a")
     if need_header:
         lf.write("step,loss,l_var,l_pred,l_ce,l_stop,state_norm\n")
-    eval_path = Path("runs/eval.csv")
+    eval_path = run_dir / "eval.csv"
     if args.eval_every > 0 and args.eval_val:
         eval_bytes = load_val_bytes(args.eval_val)
         if not eval_path.exists() or eval_path.stat().st_size == 0:
@@ -104,7 +105,7 @@ def main() -> None:
                          f"{comp.get('l_ce', 0.0)},{comp.get('l_stop', 0.0)},"
                          f"{comp.get('state_norm', 0.0)}\n")
                 if not check_finite({"loss": lv, **comp}):
-                    save_checkpoint(model, "runs/diverged.safetensors",
+                    save_checkpoint(model, str(run_dir / "diverged"),
                                     meta={"step": n, "bytes_seen": n, "cursor_bytes": n})
                     failure = "diverged"
                     print(f"DIVERGED at step {n}; emergency checkpoint saved.",
@@ -115,7 +116,7 @@ def main() -> None:
                     save_checkpoint(model, args.ckpt,
                                     meta={"step": n, "bytes_seen": n, "cursor_bytes": n})
                     el = time.time() - t0
-                    Path("runs/state.json").write_text(json.dumps({
+                    Path(run_dir / "state.json").write_text(json.dumps({
                         "step": n, "loss": lv, "components": comp,
                         "bytes_per_sec": round(n / el, 1),
                         "elapsed_s": round(el, 1)}))
@@ -141,8 +142,8 @@ def main() -> None:
         node = node_json(cfg.to_dict(), {"min_loss": min_loss if min_loss is not None else 0.0}, 0.0, failure, 0.0,
                          run_id=run_id, timestamp=started_at, git_commit=commit,
                          steps=n, bytes_seen=n)
-        Path("runs/node.json").parent.mkdir(parents=True, exist_ok=True)
-        Path("runs/node.json").write_text(json.dumps(node, indent=2))
+        Path(run_dir / "node.json").parent.mkdir(parents=True, exist_ok=True)
+        Path(run_dir / "node.json").write_text(json.dumps(node, indent=2))
         if failure:
             sys.exit(1)
 
