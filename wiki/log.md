@@ -1,5 +1,13 @@
 # Wiki Log
 
+## [2026-09-19] lint | 3 issues found, 0 auto-fixed
+- All 3 known false positives; new/updated articles scoped clean.
+
+## [2026-09-19] ingest | External consultant review + phased path
+- Disposition: Update
+- Raw: raw/tmt-torch/2026-09-19-consultant-review.md
+- Updated: Tidepool Architecture and Evidence
+
 ## [2026-09-18] lint | 0 issues found, 0 auto-fixed
 - Architecture synthesis fully clean (first zero-suspect article).
 

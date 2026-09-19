@@ -1,7 +1,7 @@
 # Tidepool Architecture and Evidence
 
 > Sources: tmt-torch session records, 2026-09-18
-> Raw: [2026-09-18-pytorch-port-record](../../raw/tmt-torch/2026-09-18-pytorch-port-record.md); [2026-09-18-rsi-loop-record](../../raw/tmt-torch/2026-09-18-rsi-loop-record.md); [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md); [2026-09-18-noise-control](../../raw/tmt-torch/2026-09-18-noise-control.md); [2026-09-18-ema-comparison](../../raw/tmt-torch/2026-09-18-ema-comparison.md); [2026-09-18-coverage-confound](../../raw/tmt-torch/2026-09-18-coverage-confound.md); [2026-09-18-rtrl-200k](../../raw/tmt-torch/2026-09-18-rtrl-200k.md); [2026-09-18-memory-zero](../../raw/tmt-torch/2026-09-18-memory-zero.md); [2026-09-18-pure-copy](../../raw/tmt-torch/2026-09-18-pure-copy.md); [2026-09-18-copy-accum](../../raw/tmt-torch/2026-09-18-copy-accum.md); [2026-09-18-reset-completion](../../raw/tmt-torch/2026-09-18-reset-completion.md); [2026-09-18-remediation-record](../../raw/tmt-torch/2026-09-18-remediation-record.md)
+> Raw: [2026-09-18-pytorch-port-record](../../raw/tmt-torch/2026-09-18-pytorch-port-record.md); [2026-09-18-rsi-loop-record](../../raw/tmt-torch/2026-09-18-rsi-loop-record.md); [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md); [2026-09-18-noise-control](../../raw/tmt-torch/2026-09-18-noise-control.md); [2026-09-18-ema-comparison](../../raw/tmt-torch/2026-09-18-ema-comparison.md); [2026-09-18-coverage-confound](../../raw/tmt-torch/2026-09-18-coverage-confound.md); [2026-09-18-rtrl-200k](../../raw/tmt-torch/2026-09-18-rtrl-200k.md); [2026-09-18-memory-zero](../../raw/tmt-torch/2026-09-18-memory-zero.md); [2026-09-18-pure-copy](../../raw/tmt-torch/2026-09-18-pure-copy.md); [2026-09-18-copy-accum](../../raw/tmt-torch/2026-09-18-copy-accum.md); [2026-09-18-reset-completion](../../raw/tmt-torch/2026-09-18-reset-completion.md); [2026-09-18-remediation-record](../../raw/tmt-torch/2026-09-18-remediation-record.md); [2026-09-19-consultant-review](../../raw/tmt-torch/2026-09-19-consultant-review.md)
 > Updated: 2026-09-18
 
 ## Overview
@@ -53,6 +53,19 @@ zero recall; pure-copy training cannot teach recall at dim128.
 Per-line reset fixed the acute stale-state poisoning (state_norm 15k →
 70). RTRL ≈ single-step at tiny scale; reset cells bit-identical by
 derivation.
+
+## External Review (Adopted)
+
+An external consultant confirmed the machinery (RTRL proof, stable
+training, honest negatives, closed RSI loop, 72 tests) and named the
+central failure: retention zero everywhere — prediction without memory.
+Adopted prescription: freeze the composite score, retention-only gate
+(copy 512/2k/8k/32k, associative retrieval, bracket matching, state
+reconstructibility), hard inductive-bias changes one at a time,
+RSI loop retargeted at retention, scale only after capability exists.
+Dream-RSI itself stands (needs graded signals; Tidepool proves the
+outer loop implementable). Current RTU treated as local feature
+extractor until retention moves.
 
 ## See Also
 
