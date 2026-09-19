@@ -2,6 +2,7 @@
 from __future__ import annotations
 import argparse
 import json
+import random
 import sys
 import time
 sys.path.insert(0, "src")
@@ -32,6 +33,8 @@ def main() -> None:
                     help="shuffled passes over --data (0 = legacy single sorted pass)")
     ap.add_argument("--resume", action="store_true",
                     help="load checkpoint meta and seek bytes_seen before training")
+    ap.add_argument("--copy-frac", type=float, default=0.0,
+                    help="share of lines replaced by copy-task episodes (epoch mode)")
     args = ap.parse_args()
     torch.manual_seed(args.seed)
     try:
@@ -68,22 +71,27 @@ def main() -> None:
                 for b in skip_bytes(args.data, resume_from):
                     buf += b
                     if b == b"\n":
-                        yield bytes(buf)
+                        yield bytes(buf), False
                         buf = bytearray()
                 if buf:
-                    yield bytes(buf)
+                    yield bytes(buf), False
                 return
             if args.epochs <= 0:
-                yield from iter_wikipedia_bytes(args.data)
+                for c in iter_wikipedia_bytes(args.data):
+                    yield c, False
                 return
-            from tmt.data import epoch_lines
+            from tmt.data import copy_episode, epoch_lines
+            erng = random.Random(args.seed + 999)
             for ep in range(args.epochs):
                 for line in epoch_lines(args.data, ep, args.seed):
-                    b = line.encode("utf-8", errors="ignore")
-                    if b:
-                        yield b
-        for chunk in _chunks():
-            if args.epochs > 0:
+                    if erng.random() < args.copy_frac:
+                        yield copy_episode(erng), True
+                    else:
+                        b = line.encode("utf-8", errors="ignore")
+                        if b:
+                            yield b, False
+        for chunk, is_episode in _chunks():
+            if args.epochs > 0 or is_episode:
                 model.reset()
             for i in range(len(chunk) - 1):
                 loss, _, _ = model.training_step(chunk[i], chunk[i + 1], i == len(chunk) - 2)
