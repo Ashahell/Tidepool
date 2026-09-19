@@ -1,29 +1,35 @@
 # Explicit Slot Memory — Design
 
-**Date:** 2026-09-19
-**Status:** Sections 1–2 approved, awaiting spec review
+**Date:** 2026-09-19 (revised per external review)
+**Status:** Awaiting re-review
 **Motivation:** every parametric lever reads 0.0 on recall; only a mechanism change is left untried.
 
-## 1. Module design
+## 1. Module design (revised: learned retrieval, honest cache writes)
 
-Sidecar `SlotMemory(dim, n_slots=16)`: slots `(n_slots, dim)` buffer
-(zero-init), content-addressed write (softmax over slot keys, blended
-update) and read (query = decoder state, weighted sum out). Single head
-(v1 scope). Config `slots: int = 0` (0 = off, exact current path).
-Clean boundary: trunk RTRL math untouched, attribution clean.
+Sidecar `SlotMemory(dim, n_slots=16)` with query/key projections
+(`Linear dim→dim`, learned) and fixed-blend content write. Deliberate,
+documented split: the WRITE side is a non-learned Hebbian cache
+(in-place buffer updates carry no gradient — stated, not hidden);
+the READ side learns (query/key projections get gradients through the
+read path every step). Temperature fixed at 1.0 (v1 scope).
+Config `slots: int = 0` (0 = off, exact current path).
 
-## 2. Integration + tests
+## 2. Integration + tests (revised)
 
-`TMTModel` holds the module (or None); a separate `mem_head`
-(`Linear 2*dim → 256`) reads `[h; read_vec]` only when slots are on —
-main decoder shape untouched, old checkpoints load. Training is plain
-end-to-end CE on copy episodes (differentiable write/read, no new loss
-term yet; auxiliary read loss explicitly deferred). Tests:
-write-then-read identity on the module alone; slots=0 path identical
-(existing suite); integration smoke (finite training + checkpoint
-roundtrip with slot state).
+`TMTModel` holds the module (or None); separate `mem_head` on
+`[h; read]`; main decoder untouched. Two training signals on copy
+episodes: end-to-end CE (existing) PLUS auxiliary retrieval loss
+(`1 - cos(read_vec, embed(target))`, weight `aux_mem_w`, default 0.0)
+that directly pressures reads to reconstruct targets. Generation
+contract: NO writes during generation (read-only recall), unit-tested
+by generation determinism (two consecutive generations identical).
+Tests: write/read retrieval with projections; off-path identical;
+aux-loss helper unit test; integration smoke (finite + roundtrip);
+retention gate = copy accuracy at distances post-training (experiment
+record, Task 3 — a unit suite passing here proves nothing about
+recall).
 
 ## Out of scope
 
-Multi-head slots, auxiliary read loss, slot addressing search, scale-up
-of slot models.
+Multi-head slots, learned write strength/erase gates, addressing
+search, scale-up of slot models.
