@@ -75,3 +75,16 @@ def test_ingesting_probe_orders_memory():
     assert copy_memory_ingesting(OneByteIngest(4, 8), _cfg()).score == 0.0
     np.random.seed(0)
     assert copy_memory_ingesting(AmnesiacIngest(), _cfg()).score == 0.0
+
+def test_long_distance_oracle_gate():
+    import numpy as np
+    from tmt.evaluation_suite import EvalConfig
+    from tmt.ingesting_probe import copy_memory_ingesting
+    from tests.test_ingesting import PerfectIngest, AmnesiacIngest
+    for gap in (512, 2048):
+        cfg = EvalConfig(copy_lengths=[4], intervening_lengths=[gap],
+                         num_copy_trials=2)
+        np.random.seed(0)
+        assert copy_memory_ingesting(PerfectIngest(4, gap), cfg).score == 1.0
+        np.random.seed(0)
+        assert copy_memory_ingesting(AmnesiacIngest(), cfg).score == 0.0
