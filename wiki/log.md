@@ -1,6 +1,14 @@
 # Wiki Log
 
 ## [2026-09-19] lint | 1 issues found, 0 auto-fixed
+- Known 610 B/s false positive only; structure verified (28 sections), scoped clean.
+
+## [2026-09-19] ingest | Recall head fits, doesn't generalize
+- Disposition: Update
+- Raw: raw/tmt-torch/2026-09-19-recall-head.md
+- Updated: Vulkan4Aros Training Data
+
+## [2026-09-19] lint | 1 issues found, 0 auto-fixed
 - Known 610 B/s false positive only; updated article scoped clean.
 
 ## [2026-09-19] ingest | Linear probe localizes failure to readout
