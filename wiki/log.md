@@ -1,6 +1,14 @@
 # Wiki Log
 
 ## [2026-09-19] lint | 1 issues found, 0 auto-fixed
+- Known 610 B/s false positive only; structure verified (39 sections), scoped clean.
+
+## [2026-09-19] ingest | Decode ceiling reached
+- Disposition: Update
+- Raw: raw/tmt-torch/2026-09-19-decode-ceiling.md
+- Updated: Vulkan4Aros Training Data
+
+## [2026-09-19] lint | 1 issues found, 0 auto-fixed
 - Known 610 B/s false positive only; structure verified (38 sections), scoped clean.
 
 ## [2026-09-19] ingest | Constraint reveals fragments
