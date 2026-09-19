@@ -1,5 +1,7 @@
 # Tidepool
 
+Attempted AI Anti Alzheimer.
+
 A PyTorch research harness for a tiny byte-level recurrent language model
 that learns continually from a stream — plus the meta-loop that searches
 for better ways to train it.
@@ -49,4 +51,4 @@ PYTHONPATH=src .venv/bin/python -m pytest tests/ -q
 
 ## License
 
-TBD
+MIT — see LICENSE.
