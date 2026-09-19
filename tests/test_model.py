@@ -37,3 +37,15 @@ def test_training_step_reports_components():
     assert comp["state_norm"] >= 0.0
     total = comp["l_var"] + comp["l_pred"] + comp["l_ce"] + comp["l_stop"]
     assert abs(total - float(loss.item())) < 1e-4
+
+def test_ingest_advances_state_without_learning():
+    import copy
+    m = TMTModel(TMTConfig(dim=16, layers=1))
+    before_params = [p.detach().clone() for p in m.parameters()]
+    before_state = m.layers[0].states.detach().clone()
+    logits, _ = m.ingest(65)
+    assert logits.shape == (1, 256)
+    assert not torch.equal(m.layers[0].states, before_state)
+    for a, b in zip(before_params, m.parameters()):
+        assert torch.equal(a, b)
+    assert m.opt.state == {}

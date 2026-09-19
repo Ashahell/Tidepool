@@ -326,3 +326,19 @@ class TMTModel(nn.Module):
             sampled = self._sample(logits)
             stop_v = float(stop.item())
         return loss, sampled, stop_v
+
+    @torch.no_grad()
+    def ingest(self, curr: int):
+        """Advance persistent state without learning: forward + commit.
+
+        The evaluation probes drive forward(), which never touches the
+        persistent buffers, so no real model can score on them. Probes
+        that must measure retention call ingest() instead: identical
+        state motion to training, minus gradients, traces, and steps.
+        """
+        enc = self.encoder(torch.tensor([curr], dtype=torch.long))
+        h = enc
+        for layer in self.layers:
+            h, state, _ = layer(enc, h)
+            layer.states.copy_(state)
+        return self.decoder(h)
