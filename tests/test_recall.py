@@ -16,3 +16,16 @@ def test_recall_head_overfits_fixed_mapping():
     assert l1 < l0
     for s, t in zip(states, targets):
         assert head.predict(s) == t
+
+def test_mlp_head_overfits_fixed_mapping():
+    import torch
+    from tmt.recall import RecallHead
+    torch.manual_seed(1)
+    head = RecallHead(dim=8, hidden=16, lr=1e-2)
+    states = torch.randn(4, 8)
+    targets = [10, 20, 30, 40]
+    for _ in range(100):
+        for s, t in zip(states, targets):
+            head.train_step(s, t)
+    for s, t in zip(states, targets):
+        assert head.predict(s) == t

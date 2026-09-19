@@ -48,7 +48,7 @@ def main() -> None:
     model = TMTModel(cfg)
     model.init_decay_groups()
     from tmt.recall import RecallHead
-    recall = RecallHead(cfg.dim)
+    recall = RecallHead(cfg.dim, hidden=cfg.recall_hidden)
     recall_path = Path(args.ckpt).parent / "recall.pt"
     if recall_path.exists():
         recall.load_state_dict(torch.load(recall_path, weights_only=True))

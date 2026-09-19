@@ -13,9 +13,13 @@ import torch.nn.functional as F
 
 
 class RecallHead(nn.Module):
-    def __init__(self, dim: int, lr: float = 1e-3):
+    def __init__(self, dim: int, lr: float = 1e-3, hidden: int = 0):
         super().__init__()
-        self.proj = nn.Linear(dim, 256)
+        if hidden > 0:
+            self.proj = nn.Sequential(nn.Linear(dim, hidden), nn.ReLU(),
+                                      nn.Linear(hidden, 256))
+        else:
+            self.proj = nn.Linear(dim, 256)
         self.opt = torch.optim.Adam(self.parameters(), lr=lr)
 
     def train_step(self, state, target: int) -> float:
@@ -31,4 +35,5 @@ class RecallHead(nn.Module):
     def predict(self, state) -> int:
         self.eval()
         with torch.no_grad():
-            return int(self.proj(state).argmax(dim=-1).item())
+            out = self.proj(state)
+            return int(out.argmax(dim=-1).view(-1)[0].item())

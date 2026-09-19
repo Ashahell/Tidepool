@@ -20,6 +20,7 @@ class TMTConfig:
     replay_k: int = 1
     replay_noise: bool = False
     ema_decay: float = 0.0
+    recall_hidden: int = 0
     replay_alpha: float = 1.0
 
     def __post_init__(self):
