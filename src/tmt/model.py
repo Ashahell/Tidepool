@@ -28,19 +28,25 @@ class ByteDecoder(nn.Module):
         return self.decode(x), torch.sigmoid(self.stop(x))
 
 class RTULayer(nn.Module):
-    def __init__(self, dim: int):
+    def __init__(self, dim: int, selective: bool = False):
         super().__init__()
         self.dim = dim
+        self.use_selective = selective
         self.decay_bias = nn.Parameter(torch.zeros(dim))
+        self.gate_w = nn.Parameter(torch.zeros(dim))
         self.norm = nn.LayerNorm(dim)
         self.weights = nn.Linear(dim, dim, bias=False)
         self.silu = nn.SiLU()
         self.register_buffer("states", torch.zeros(1, dim))
         self.register_buffer("decaytrace", torch.zeros(dim))
         self.register_buffer("embedtrace", torch.zeros(256, dim))
+        self.register_buffer("gatetrace", torch.zeros(dim, dim))
 
     def forward(self, enc: torch.Tensor, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-        decay = torch.sigmoid(self.decay_bias)
+        if self.use_selective:
+            decay = torch.sigmoid(self.decay_bias + self.gate_w * enc.squeeze(0))
+        else:
+            decay = torch.sigmoid(self.decay_bias)
         state = decay * self.states + enc
         out = x + self.silu(self.weights(self.norm(state)))
         return out, state, decay
@@ -51,7 +57,7 @@ class TMTModel(nn.Module):
         self.cfg = cfg
         self.encoder = Encoder(cfg.dim)
         self.decoder = ByteDecoder(cfg.dim)
-        self.layers = nn.ModuleList([RTULayer(cfg.dim) for _ in range(cfg.layers)])
+        self.layers = nn.ModuleList([RTULayer(cfg.dim, cfg.selective) for _ in range(cfg.layers)])
         self.opt = torch.optim.AdamW(self.parameters(), lr=cfg.lr)
         self._accum = 0
         self.last_components: dict = {}
@@ -80,6 +86,7 @@ class TMTModel(nn.Module):
                 layer.states.zero_()
                 layer.decaytrace.zero_()
                 layer.embedtrace.zero_()
+                layer.gatetrace.zero_()
         self._accum = 0
 
     def load_numpy_params(self, P: dict) -> None:
@@ -229,6 +236,9 @@ class TMTModel(nn.Module):
         # steps through persistent state -> RTRL trace corrections below.
         # weights/LayerNorm/decoder/stop-head affect only the current step
         # -> plain autograd is exact, no correction.
+        # Selective gate (vector w_g): same treatment as decay_bias —
+        # autograd holds the direct term, the correction adds only the
+        # recurrent part dL_t/ds_t·d·G_{t-1}.
         # _rtrl_enabled (default True) is the Task 5 ablation gate.
         # Decay accumulation rule: autograd already holds each step's DIRECT
         # term dL_t/ds_t·d(1-d)·s_{t-1} (decay's only in-graph use is the
@@ -242,7 +252,10 @@ class TMTModel(nn.Module):
                 for i, layer in enumerate(self.layers):
                     dlds = states[i].grad.detach().squeeze(0)
                     old_embed = layer.embedtrace.detach().clone()
-                    old_decay = torch.sigmoid(layer.decay_bias).detach()
+                    old_decay = decays[i].detach()
+                    # old_embedtrace already carries past gate influence via
+                    # the trace recursion below; the current-step gate path
+                    # is autograd's (in-graph), so no extra term here.
                     embed_corr = dlds * (old_embed * old_decay)
                     if self.encoder.embed.weight.grad is not None:
                         self.encoder.embed.weight.grad += embed_corr
@@ -253,6 +266,13 @@ class TMTModel(nn.Module):
                         layer.decay_bias.grad = rec
                     else:
                         layer.decay_bias.grad += rec
+                    if layer.use_selective:
+                        dcur = decays[i].detach()
+                        grec = ((dlds * dcur).unsqueeze(0) @ layer.gatetrace.detach()).squeeze(0).clone()
+                        if layer.gate_w.grad is None:
+                            layer.gate_w.grad = grec
+                        else:
+                            layer.gate_w.grad += grec
         # RTRL trace update (matches MLX dummy-gradient correction).
         with torch.no_grad():
             for i, layer in enumerate(self.layers):
@@ -262,6 +282,13 @@ class TMTModel(nn.Module):
                 one_hot[curr] += 1.0
                 layer.embedtrace.mul_(d).add_(one_hot)
                 layer.decaytrace.mul_(d).add_(d * (1.0 - d) * layer.states.squeeze(0))
+                if layer.use_selective:
+                    enc_vec = enc.detach().squeeze(0)
+                    s_old = layer.states.detach().squeeze(0)
+                    m = d * (1.0 - d) * s_old * enc_vec
+                    layer.gatetrace.mul_(d.unsqueeze(1)).add_(torch.diag(m))
+                    wg = layer.gate_w.detach()
+                    layer.embedtrace.add_(one_hot * (d * (1.0 - d) * s_old * wg).unsqueeze(0))
                 layer.states.copy_(s)
         self._accum += 1
         if self._accum >= self.cfg.update_every:

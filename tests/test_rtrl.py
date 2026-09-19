@@ -75,3 +75,40 @@ def test_rtrl_two_step_all_classes():
 
 def test_rtrl_five_step_temporal_classes():
     _check([65, 66, 67, 68, 69, 70], ["embed", "decay", "w"])
+
+def _selective_model():
+    cfg = TMTConfig(dim=3, layers=1, update_every=1000, decay_groups=1,
+                    grad_clip=float("inf"), selective=True)
+    m = TMTModel(cfg).double()
+    torch.manual_seed(4)
+    for p in m.parameters():
+        torch.nn.init.uniform_(p, -0.5, 0.5)
+    m.reset()
+    return m
+
+def test_selective_off_matches_plain_forward():
+    torch.manual_seed(6)
+    a = TMTModel(TMTConfig(dim=8, layers=1))
+    torch.manual_seed(6)
+    b = TMTModel(TMTConfig(dim=8, layers=1, selective=True))
+    x = torch.tensor([65], dtype=torch.long)
+    with torch.no_grad():
+        la, _ = a(x)
+        lb, _ = b(x)
+    assert torch.equal(la, lb)
+
+def test_selective_matches_fd():
+    m = _selective_model()
+    seq = [65, 66, 67, 68]
+    _total_loss(m, seq)
+    skip = set(seq[1:])  # pred-target rows excluded: upstream stop_gradient
+    names = list(_all_params(m).keys()) + ["gate_w"]
+    for name in names:
+        p = _all_params(m)[name] if name != "gate_w" else m.layers[0].gate_w
+        got = p.grad.detach().clone().double()
+        ref = _fd_grad(m, seq, p)
+        if name == "embed":
+            mask = torch.tensor([i not in skip for i in range(256)])
+            got, ref = got[mask], ref[mask]
+        rel = (got - ref).abs().max() / ref.abs().max().clamp_min(1e-12)
+        assert rel.item() < 1e-4, (name, rel.item())
