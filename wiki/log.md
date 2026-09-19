@@ -1,5 +1,12 @@
 # Wiki Log
 
+## [2026-09-18] lint | 0 issues found, 0 auto-fixed
+- Architecture synthesis fully clean (first zero-suspect article).
+
+## [2026-09-18] ingest | Architecture and evidence synthesis
+- Disposition: New
+- Raw: (synthesis of linked raws; no new raw)
+
 ## [2026-09-18] lint | 1 issues found, 0 auto-fixed
 - Known 610 B/s false positive only; updated article scoped clean.
 
