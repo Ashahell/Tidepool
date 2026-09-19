@@ -1,7 +1,7 @@
 # Vulkan4Aros Training Data
 
 > Sources: tmt-torch session record, 2026-09-18
-> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-delivery](../../raw/tmt-torch/2026-09-18-replay-delivery.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-delivery](../../raw/tmt-torch/2026-09-18-priority-delivery.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md); [2026-09-18-noise-control](../../raw/tmt-torch/2026-09-18-noise-control.md); [2026-09-18-ema-delivery](../../raw/tmt-torch/2026-09-18-ema-delivery.md); [2026-09-18-ema-comparison](../../raw/tmt-torch/2026-09-18-ema-comparison.md); [2026-09-18-coverage-confound](../../raw/tmt-torch/2026-09-18-coverage-confound.md); [2026-09-18-reset-interim](../../raw/tmt-torch/2026-09-18-reset-interim.md); [2026-09-18-reset-extension](../../raw/tmt-torch/2026-09-18-reset-extension.md); [2026-09-18-reset-completion](../../raw/tmt-torch/2026-09-18-reset-completion.md); [2026-09-18-rtrl-200k](../../raw/tmt-torch/2026-09-18-rtrl-200k.md); [2026-09-18-memory-zero](../../raw/tmt-torch/2026-09-18-memory-zero.md); [2026-09-18-copy-training](../../raw/tmt-torch/2026-09-18-copy-training.md); [2026-09-18-pure-copy](../../raw/tmt-torch/2026-09-18-pure-copy.md); [2026-09-18-copy-accum](../../raw/tmt-torch/2026-09-18-copy-accum.md); [2026-09-19-gru-contrast](../../raw/tmt-torch/2026-09-19-gru-contrast.md); [2026-09-19-scale-copy](../../raw/tmt-torch/2026-09-19-scale-copy.md)
+> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-delivery](../../raw/tmt-torch/2026-09-18-replay-delivery.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-delivery](../../raw/tmt-torch/2026-09-18-priority-delivery.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md); [2026-09-18-noise-control](../../raw/tmt-torch/2026-09-18-noise-control.md); [2026-09-18-ema-delivery](../../raw/tmt-torch/2026-09-18-ema-delivery.md); [2026-09-18-ema-comparison](../../raw/tmt-torch/2026-09-18-ema-comparison.md); [2026-09-18-coverage-confound](../../raw/tmt-torch/2026-09-18-coverage-confound.md); [2026-09-18-reset-interim](../../raw/tmt-torch/2026-09-18-reset-interim.md); [2026-09-18-reset-extension](../../raw/tmt-torch/2026-09-18-reset-extension.md); [2026-09-18-reset-completion](../../raw/tmt-torch/2026-09-18-reset-completion.md); [2026-09-18-rtrl-200k](../../raw/tmt-torch/2026-09-18-rtrl-200k.md); [2026-09-18-memory-zero](../../raw/tmt-torch/2026-09-18-memory-zero.md); [2026-09-18-copy-training](../../raw/tmt-torch/2026-09-18-copy-training.md); [2026-09-18-pure-copy](../../raw/tmt-torch/2026-09-18-pure-copy.md); [2026-09-18-copy-accum](../../raw/tmt-torch/2026-09-18-copy-accum.md); [2026-09-19-gru-contrast](../../raw/tmt-torch/2026-09-19-gru-contrast.md); [2026-09-19-scale-copy](../../raw/tmt-torch/2026-09-19-scale-copy.md); [2026-09-19-long-copy](../../raw/tmt-torch/2026-09-19-long-copy.md)
 > Updated: 2026-09-18
 
 ## Overview
@@ -173,6 +173,13 @@ dim256/layers8 (662017 params, 5x) on pure copy, 30k steps: payload CE
 bigger model may want more steps (confound noted). Process fix in the
 same pass: run artifacts now land under the ckpt dir (shared loss.csv
 collisions bitten three times).
+
+## Long Copy (Time Doesn't Unlock Recall)
+
+150k pure-copy steps: payload CE 6.494 (7.923 → 7.229 → 6.494 across
+30/60/150k — grinding, still above uniform 5.545), probe 0.0,
+held-out evals flat ~7.0. Time alone ruled out at this scale. Left:
+protocol redesign, much bigger scale, structural memory.
 
 ## RTRL 200k (Forgetting Gone)
 
