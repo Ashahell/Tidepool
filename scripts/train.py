@@ -47,6 +47,11 @@ def main() -> None:
     cfg = TMTConfig.from_yaml(args.config)
     model = TMTModel(cfg)
     model.init_decay_groups()
+    from tmt.recall import RecallHead
+    recall = RecallHead(cfg.dim)
+    recall_path = Path(args.ckpt).parent / "recall.pt"
+    if recall_path.exists():
+        recall.load_state_dict(torch.load(recall_path, weights_only=True))
     meta = load_checkpoint(model, args.ckpt, allow_missing=True) or {}
     resume_from = int(meta.get("bytes_seen", 0)) if args.resume else 0
     run_id, started_at, commit = new_run_id(), utc_timestamp(), git_commit_short()
@@ -122,6 +127,7 @@ def main() -> None:
                     lf.flush()
                     save_checkpoint(model, args.ckpt,
                                     meta={"step": n, "bytes_seen": n, "cursor_bytes": n})
+                    torch.save(recall.state_dict(), run_dir / "recall.pt")
                     el = time.time() - t0
                     Path(run_dir / "state.json").write_text(json.dumps({
                         "step": n, "loss": lv, "components": comp,
@@ -142,9 +148,28 @@ def main() -> None:
                           f"composite={r.composite_score:.3f}", flush=True)
                 if n >= args.steps:
                     return
+            if is_episode:
+                # Recall distillation: re-feed pre+marker, train the
+                # separate head (trunk frozen) on the payload segment.
+                from tmt.data import QUERY_MARKER
+                pre, post = bytes(chunk).split(QUERY_MARKER)
+                model.reset()
+                with torch.no_grad():
+                    for b in pre + QUERY_MARKER:
+                        model.ingest(b)
+                    st = model.layers[-1].states.detach().clone()
+                for j, t in enumerate(post):
+                    if j > 0:
+                        with torch.no_grad():
+                            model.ingest(post[j - 1])
+                            st = model.layers[-1].states.detach().clone()
+                    recall.train_step(st.detach(), int(t))
+            if n >= args.steps:
+                return
     finally:
         save_checkpoint(model, args.ckpt,
                         meta={"step": n, "bytes_seen": n, "cursor_bytes": n})
+        torch.save(recall.state_dict(), run_dir / "recall.pt")
         lf.close()
         node = node_json(cfg.to_dict(), {"min_loss": min_loss if min_loss is not None else 0.0}, 0.0, failure, 0.0,
                          run_id=run_id, timestamp=started_at, git_commit=commit,
