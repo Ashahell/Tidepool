@@ -10,3 +10,4 @@ grid:
   replay_size: [0, 64]
   replay_k: [1]
   replay_alpha: [0.0, 1.0]
+  slots: [0, 16]

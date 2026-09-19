@@ -41,3 +41,8 @@ def test_loop_accepts_replay_alpha():
     import yaml
     grid = yaml.safe_load(open("configs/rsi_smoke.yaml"))["grid"]
     assert grid["replay_alpha"] == [0.0, 1.0]
+
+def test_loop_accepts_slots():
+    import yaml
+    grid = yaml.safe_load(open("configs/rsi_smoke.yaml"))["grid"]
+    assert grid["slots"] == [0, 16]
