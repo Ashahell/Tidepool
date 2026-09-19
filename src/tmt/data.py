@@ -46,6 +46,8 @@ def epoch_lines(root: str, epoch: int, seed: int) -> list:
 QUERY_MARKER = b"\x00\x00\x00"
 PAYLOAD_LENS = (4, 8, 16)
 FILLER_LENS = (8, 32, 128)
+TINY_PAYLOAD_LENS = (2, 4)
+TINY_FILLER_LENS = (0, 2, 4)
 
 def copy_episode(rng: random.Random,
                  payload_lens=PAYLOAD_LENS,

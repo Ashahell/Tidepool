@@ -3,6 +3,14 @@
 ## [2026-09-19] lint | 1 issues found, 0 auto-fixed
 - Known 610 B/s false positive only; updated article scoped clean.
 
+## [2026-09-19] ingest | Tiny curriculum + cued recall zero
+- Disposition: Update
+- Raw: raw/tmt-torch/2026-09-19-tiny-cued.md
+- Updated: Vulkan4Aros Training Data
+
+## [2026-09-19] lint | 1 issues found, 0 auto-fixed
+- Known 610 B/s false positive only; updated article scoped clean.
+
 ## [2026-09-19] ingest | Long copy: time ruled out
 - Disposition: Update
 - Raw: raw/tmt-torch/2026-09-19-long-copy.md

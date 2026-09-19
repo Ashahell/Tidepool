@@ -35,6 +35,8 @@ def main() -> None:
                     help="load checkpoint meta and seek bytes_seen before training")
     ap.add_argument("--copy-frac", type=float, default=0.0,
                     help="share of lines replaced by copy-task episodes (epoch mode)")
+    ap.add_argument("--copy-tiny", action="store_true",
+                    help="tiny copy curriculum (payload 2-4, filler 0-4)")
     args = ap.parse_args()
     torch.manual_seed(args.seed)
     try:
@@ -81,12 +83,17 @@ def main() -> None:
                 for c in iter_wikipedia_bytes(args.data):
                     yield c, False
                 return
-            from tmt.data import copy_episode, epoch_lines
+            from tmt.data import (copy_episode, epoch_lines, TINY_PAYLOAD_LENS,
+                                  TINY_FILLER_LENS)
             erng = random.Random(args.seed + 999)
             for ep in range(args.epochs):
                 for line in epoch_lines(args.data, ep, args.seed):
                     if erng.random() < args.copy_frac:
-                        yield copy_episode(erng), True
+                        if args.copy_tiny:
+                            yield copy_episode(erng, TINY_PAYLOAD_LENS,
+                                               TINY_FILLER_LENS), True
+                        else:
+                            yield copy_episode(erng), True
                     else:
                         b = line.encode("utf-8", errors="ignore")
                         if b:
