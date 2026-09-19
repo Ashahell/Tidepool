@@ -103,7 +103,19 @@ def load_checkpoint(model, path: str, allow_missing: bool = False) -> dict:
         raise FileNotFoundError(f"checkpoint not found: {weights}")
     data = load_file(str(weights))
     sd = {k[2:]: v for k, v in data.items() if k.startswith("m.")}
-    model.load_state_dict(sd, strict=True)
+    try:
+        model.load_state_dict(sd, strict=True)
+    except RuntimeError:
+        # Compat: checkpoints predating selective gates lack gate keys;
+        # gate defaults are mathematical zeros, so loading them as such
+        # is exact, not silent. Anything else still raises.
+        missing = set(model.state_dict()) - set(sd)
+        unexpected = set(sd) - set(model.state_dict())
+        if missing and not unexpected and all("gate" in k for k in missing):
+            print(f"warning: backfilling {len(missing)} gate keys with zeros")
+            model.load_state_dict(sd, strict=False)
+        else:
+            raise
     for i, layer in enumerate(model.layers):
         if f"trace_state.{i}" in data:
             layer.states.copy_(data[f"trace_state.{i}"])
@@ -119,7 +131,12 @@ def load_checkpoint(model, path: str, allow_missing: bool = False) -> dict:
             return {}
         raise FileNotFoundError(f"checkpoint state not found: {state_path}")
     payload = torch.load(str(state_path), map_location="cpu", weights_only=False)
-    model.opt.load_state_dict(payload["optimizer"])
+    try:
+        model.opt.load_state_dict(payload["optimizer"])
+    except ValueError:
+        # Old optimizer state (e.g. predating gate params): keep the fresh
+        # optimizer rather than fail the whole load. Warn loudly.
+        print("warning: optimizer state incompatible; using fresh optimizer")
     model._accum = int(payload.get("accum", 0))
     _restore_rng(payload)
     meta = payload.get("meta", {})
