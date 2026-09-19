@@ -1,5 +1,13 @@
 # Wiki Log
 
+## [2026-09-19] lint | 1 issues found, 0 auto-fixed
+- Known 610 B/s false positive only; updated article scoped clean.
+
+## [2026-09-19] ingest | GRU contrast: failure not TMT-specific
+- Disposition: Update
+- Raw: raw/tmt-torch/2026-09-19-gru-contrast.md
+- Updated: Vulkan4Aros Training Data
+
 ## [2026-09-19] lint | 3 issues found, 0 auto-fixed
 - All 3 known false positives; new/updated articles scoped clean.
 
