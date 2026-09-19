@@ -1,6 +1,14 @@
 # Wiki Log
 
 ## [2026-09-19] lint | 1 issues found, 0 auto-fixed
+- Known 610 B/s false positive only; structure verified (32 sections), scoped clean.
+
+## [2026-09-19] ingest | Decay audit kills collapse theory
+- Disposition: Update
+- Raw: raw/tmt-torch/2026-09-19-decay-audit.md
+- Updated: Vulkan4Aros Training Data
+
+## [2026-09-19] lint | 1 issues found, 0 auto-fixed
 - Known 610 B/s false positive only; structure verified (31 sections), scoped clean.
 
 ## [2026-09-19] ingest | Rank flat: no sharpening with training
