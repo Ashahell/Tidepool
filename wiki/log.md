@@ -1,6 +1,14 @@
 # Wiki Log
 
 ## [2026-09-19] lint | 1 issues found, 0 auto-fixed
+- Known 610 B/s false positive only; structure verified (30 sections), scoped clean.
+
+## [2026-09-19] ingest | Per-position: diffuse trace, no recency
+- Disposition: Update
+- Raw: raw/tmt-torch/2026-09-19-per-position.md
+- Updated: Vulkan4Aros Training Data
+
+## [2026-09-19] lint | 1 issues found, 0 auto-fixed
 - Known 610 B/s false positive only; updated article scoped clean.
 
 ## [2026-09-19] ingest | Nonlinear readout: capacity not the gap
