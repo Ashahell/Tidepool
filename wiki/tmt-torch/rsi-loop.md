@@ -1,7 +1,7 @@
 # Dream-RSI Loop
 
 > Sources: tmt-torch session record, 2026-09-18
-> Raw: [2026-09-18-rsi-loop-record](../../raw/tmt-torch/2026-09-18-rsi-loop-record.md); [2026-09-18-rsi-smoke-run](../../raw/tmt-torch/2026-09-18-rsi-smoke-run.md); [2026-09-18-real-scorer](../../raw/tmt-torch/2026-09-18-real-scorer.md)
+> Raw: [2026-09-18-rsi-loop-record](../../raw/tmt-torch/2026-09-18-rsi-loop-record.md); [2026-09-18-rsi-smoke-run](../../raw/tmt-torch/2026-09-18-rsi-smoke-run.md); [2026-09-18-real-scorer](../../raw/tmt-torch/2026-09-18-real-scorer.md); [2026-09-18-rtrl-remeasurement](../../raw/tmt-torch/2026-09-18-rtrl-remeasurement.md)
 > Updated: 2026-09-18
 
 ## Overview
@@ -23,6 +23,16 @@ score, so ties keep the incumbent. Rewriter backends are an
 OpenAI-compatible client (≤3 retries, env keys only) and an agent-session
 file flow. Smoke defaults run ≤8 configs over 2 rounds (budget_per_round
 0.08, grid dim [32, 64], layers [1]).
+
+## RTRL Ablation (No Difference at Tiny Scale)
+
+An 8-cell matrix ({RTRL, single-step} × {persistent, reset} ×
+{groups-4, groups-1}, 2000 steps each) shows RTRL ≈ single-step on every
+metric (bpb 7.45 vs 7.45, copy 0.0 everywhere) and reset cells
+bit-identical (zero state implies zero correction — derived, not a bug).
+The correction is proven right by finite differences but buys nothing
+measurable at this scale and horizon; the question stays open for
+longer runs and bigger models.
 
 ## First Live Run
 
