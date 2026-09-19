@@ -1,7 +1,7 @@
 # Vulkan4Aros Training Data
 
 > Sources: tmt-torch session record, 2026-09-18
-> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-delivery](../../raw/tmt-torch/2026-09-18-replay-delivery.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-delivery](../../raw/tmt-torch/2026-09-18-priority-delivery.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md); [2026-09-18-noise-control](../../raw/tmt-torch/2026-09-18-noise-control.md); [2026-09-18-ema-delivery](../../raw/tmt-torch/2026-09-18-ema-delivery.md); [2026-09-18-ema-comparison](../../raw/tmt-torch/2026-09-18-ema-comparison.md); [2026-09-18-coverage-confound](../../raw/tmt-torch/2026-09-18-coverage-confound.md); [2026-09-18-reset-interim](../../raw/tmt-torch/2026-09-18-reset-interim.md); [2026-09-18-reset-extension](../../raw/tmt-torch/2026-09-18-reset-extension.md); [2026-09-18-reset-completion](../../raw/tmt-torch/2026-09-18-reset-completion.md); [2026-09-18-rtrl-200k](../../raw/tmt-torch/2026-09-18-rtrl-200k.md); [2026-09-18-memory-zero](../../raw/tmt-torch/2026-09-18-memory-zero.md)
+> Raw: [2026-09-18-vk4a-training](../../raw/tmt-torch/2026-09-18-vk4a-training.md); [2026-09-18-monitoring](../../raw/tmt-torch/2026-09-18-monitoring.md); [2026-09-18-serious-run-1](../../raw/tmt-torch/2026-09-18-serious-run-1.md); [2026-09-18-knob-round](../../raw/tmt-torch/2026-09-18-knob-round.md); [2026-09-18-long-run](../../raw/tmt-torch/2026-09-18-long-run.md); [2026-09-18-replay-delivery](../../raw/tmt-torch/2026-09-18-replay-delivery.md); [2026-09-18-replay-comparison](../../raw/tmt-torch/2026-09-18-replay-comparison.md); [2026-09-18-priority-delivery](../../raw/tmt-torch/2026-09-18-priority-delivery.md); [2026-09-18-priority-comparison](../../raw/tmt-torch/2026-09-18-priority-comparison.md); [2026-09-18-noise-control](../../raw/tmt-torch/2026-09-18-noise-control.md); [2026-09-18-ema-delivery](../../raw/tmt-torch/2026-09-18-ema-delivery.md); [2026-09-18-ema-comparison](../../raw/tmt-torch/2026-09-18-ema-comparison.md); [2026-09-18-coverage-confound](../../raw/tmt-torch/2026-09-18-coverage-confound.md); [2026-09-18-reset-interim](../../raw/tmt-torch/2026-09-18-reset-interim.md); [2026-09-18-reset-extension](../../raw/tmt-torch/2026-09-18-reset-extension.md); [2026-09-18-reset-completion](../../raw/tmt-torch/2026-09-18-reset-completion.md); [2026-09-18-rtrl-200k](../../raw/tmt-torch/2026-09-18-rtrl-200k.md); [2026-09-18-memory-zero](../../raw/tmt-torch/2026-09-18-memory-zero.md); [2026-09-18-copy-training](../../raw/tmt-torch/2026-09-18-copy-training.md)
 > Updated: 2026-09-18
 
 ## Overview
@@ -134,6 +134,14 @@ New probe feeds through model.ingest (oracles order 1.0/0.0/0.0, suite
 70 green). The trained 200k RTRL checkpoint scores 0.0 at every cell
 including copy-4 after 8 bytes. Good prediction with zero retention:
 different phenomena, properly instrumented baseline.
+
+## Copy Training (No Signal Yet)
+
+Episode protocol (triple-null marker, per-episode reset, frac 0.2) with
+no new loss term; 20k steps: probe 0.0 everywhere, payload CE 7.382 vs
+uniform 5.545 — not even marker recognition. Inconclusive on capability
+(a few hundred diluted episodes); needs longer/higher-frac training
+before any claim.
 
 ## RTRL 200k (Forgetting Gone)
 
