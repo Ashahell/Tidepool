@@ -9,6 +9,15 @@ import torch.nn as nn
 import torch.nn.functional as F
 
 from .config import TMTConfig
+
+
+def sparsify(h: torch.Tensor, k: int) -> torch.Tensor:
+    """Top-k readout mask (k <= 0 = passthrough). Recurrence untouched."""
+    if k <= 0 or k >= h.shape[-1]:
+        return h
+    top, _ = torch.topk(h.abs(), k, dim=-1)
+    thresh = top[..., -1].unsqueeze(-1)
+    return torch.where(h.abs() >= thresh, h, torch.zeros_like(h))
 from .slots import SlotMemory
 
 class Encoder(nn.Module):
@@ -193,9 +202,9 @@ class TMTModel(nn.Module):
 
     def _decode(self, h: torch.Tensor):
         if self.slots is None:
-            return self.decoder(h)
+            return self.decoder(sparsify(h, self.cfg.sparse_k))
         read_vec = self.slots.read(h)
-        logits = self.mem_head(torch.cat([h.squeeze(0), read_vec], dim=-1).unsqueeze(0))
+        logits = self.mem_head(torch.cat([sparsify(h, self.cfg.sparse_k).squeeze(0), read_vec], dim=-1).unsqueeze(0))
         _, stop = self.decoder(h)
         return logits, stop
 

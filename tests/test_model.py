@@ -49,3 +49,29 @@ def test_ingest_advances_state_without_learning():
     for a, b in zip(before_params, m.parameters()):
         assert torch.equal(a, b)
     assert m.opt.state == {}
+
+def test_sparse_readout_level_and_off_path():
+    m = TMTModel(TMTConfig(dim=16, layers=1))
+    x = torch.tensor([65], dtype=torch.long)
+    with torch.no_grad():
+        l_off, _ = m(x)
+    m2 = TMTModel(TMTConfig(dim=16, layers=1, sparse_k=4))
+    m2.load_state_dict(m.state_dict(), strict=False)
+    assert set(m2.state_dict()) >= set(m.state_dict())
+    with torch.no_grad():
+        enc = m2.encoder(x)
+        h = enc
+        for layer in m2.layers:
+            h, _, _, _ = layer(enc, h)
+        assert int((h != 0).sum()) == 16
+
+def test_sparsify_exact_level():
+    from tmt.model import sparsify
+    torch.manual_seed(0)
+    h = torch.randn(1, 16)
+    assert sparsify(h, 0) is h
+    assert sparsify(h, 16) is h
+    s = sparsify(h, 4)
+    assert int((s != 0).sum()) == 4
+    assert torch.equal(s[s != 0].abs().sort().values,
+                       h.abs().flatten().topk(4).values.sort().values)

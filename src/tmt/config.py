@@ -22,6 +22,7 @@ class TMTConfig:
     ema_decay: float = 0.0
     recall_hidden: int = 0
     selective: bool = False
+    sparse_k: int = 0
     replay_alpha: float = 1.0
     slots: int = 0
     aux_mem_w: float = 0.0
