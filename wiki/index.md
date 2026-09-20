@@ -10,3 +10,4 @@ Port of the byte-level recurrent TMT model to PyTorch, plus its Dream-RSI evalua
 | [Dream-RSI Loop](tmt-torch/rsi-loop.md) | Single-machine explore→replay→rewrite loop; first live run logged | 2026-09-18 |
 | [Vulkan4Aros Training Data](tmt-torch/vk4a-training.md) | vk4a prose+code corpus; monitored training, held-out bpb 7.49 | 2026-09-18 |
 | [Architecture and Evidence](tmt-torch/architecture-and-evidence.md) | Causal-hierarchy rewrite: know-vs-think, gates, rejected hypotheses | 2026-09-19 |
+| [Final Assessment](tmt-torch/final-assessment.md) | Capstone verdict: retention present, retrieval absent; 40x memorization table; open invoice | 2026-09-19 |

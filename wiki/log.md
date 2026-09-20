@@ -446,3 +446,12 @@
 ## [2026-09-18] ingest | TMT PyTorch Port
 - Disposition: New
 - Raw: raw/tmt-torch/2026-09-18-pytorch-port-record.md
+
+## [2026-09-19] ingest | Final Assessment
+- Disposition: New (capstone synthesis)
+- Verdict: recurrent feature extractor, not a memory system; 7-link evidence chain, 122-test suite
+- Raw: raw/tmt-torch/2026-09-19-credit-addressing.md (latest); full list in article
+
+## [2026-09-19] lint | 2 suspects judged false positive
+- "0.99 per layer" (final-assessment.md): raw has ">0.99\nper layer" line-wrapped, same content.
+- "100000" (final-assessment.md): reproduction command (`copy_dense.py --steps`), not a measurement claim.
