@@ -1,6 +1,14 @@
 # Wiki Log
 
 ## [2026-09-19] lint | 1 issues found, 0 auto-fixed
+- Known 610 B/s false positive only; structure verified (45 sections), scoped clean.
+
+## [2026-09-19] ingest | Hybrid fails: history swamps content
+- Disposition: Update
+- Raw: raw/tmt-torch/2026-09-19-hybrid-fails.md
+- Updated: Vulkan4Aros Training Data
+
+## [2026-09-19] lint | 1 issues found, 0 auto-fixed
 - Known 610 B/s false positive only; structure verified (44 sections), scoped clean.
 
 ## [2026-09-19] ingest | Exact cache: wrong shape for recall
