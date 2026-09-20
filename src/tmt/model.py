@@ -1,4 +1,11 @@
 # src/tmt/model.py
+#
+# LAYOUT (prove-and-freeze): the CANONICAL RTU core is Encoder,
+# ByteDecoder, RTULayer recurrence, TMTModel forward/_update/training
+# loop, reset, and load_numpy_params with all experimental flags off.
+# Everything marked EXPERIMENTAL below is inert unless its flag is set
+# (proven by tests/test_canonical.py) and must stay that way: no
+# experimental branch may alter canonical-path numerics.
 from __future__ import annotations
 from typing import List, Optional, Tuple
 from collections import deque
@@ -49,6 +56,7 @@ class ByteDecoder(nn.Module):
         return self.decode(x), torch.sigmoid(self.stop(x))
 
 class RTULayer(nn.Module):
+    # EXPERIMENTAL params below (selective gates, write mask): inert unless flagged.
     def __init__(self, dim: int, selective: bool = False, write_k: int = 0):
         super().__init__()
         self.dim = dim
@@ -69,14 +77,13 @@ class RTULayer(nn.Module):
         self.register_buffer("ingwmat", torch.zeros(dim, dim))
 
     def forward(self, enc: torch.Tensor, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
-        if self.use_selective:
-            enc_v = enc.squeeze(0)
+        if self.use_selective:  # EXPERIMENTAL
             decay = torch.sigmoid(self.decay_bias + self.gate_w * enc_v)
             ingate = torch.sigmoid(self.in_bias + self.in_w * enc_v)
         else:
             decay = torch.sigmoid(self.decay_bias)
             ingate = torch.ones_like(decay)
-        wmask = write_mask(enc.squeeze(0), self.write_k, self.dim)
+        wmask = write_mask(enc.squeeze(0), self.write_k, self.dim)  # EXPERIMENTAL when write_k > 0
         state = decay * self.states + ingate.unsqueeze(0) * (wmask.unsqueeze(0) * enc)
         out = x + self.silu(self.weights(self.norm(state)))
         return out, state, decay, ingate
@@ -91,13 +98,14 @@ class TMTModel(nn.Module):
         # NOTE (task-1 deviation): slots/mem_head are created BEFORE the
         # optimizer so AdamW owns the query/key/mem_head params; the brief's
         # "after replay_buf lines" placement would leave them untrained.
+        # EXPERIMENTAL (all inert unless flagged — see tests/test_canonical.py):
         self.slots = SlotMemory(cfg.dim, cfg.slots, temp=cfg.slot_temp) if cfg.slots > 0 else None
         self.mem_head = nn.Linear(2 * cfg.dim, 256) if cfg.slots > 0 else None
         self.opt = torch.optim.AdamW(self.parameters(), lr=cfg.lr)
         self._accum = 0
         self.last_components: dict = {}
-        self.ema_state = None
-        self.replay_buf = (deque(maxlen=cfg.replay_size)
+        self.ema_state = None  # EXPERIMENTAL (EMA shadows; inert at ema_decay 0)
+        self.replay_buf = (deque(maxlen=cfg.replay_size)  # EXPERIMENTAL (replay; None at size 0)
                             if cfg.replay_size > 0 else None)
 
     def _replay_indices(self, k: int) -> list[int]:
@@ -214,6 +222,8 @@ class TMTModel(nn.Module):
         return logits, states
 
     def _decode(self, h: torch.Tensor):
+        # EXPERIMENTAL branches (slots/mem_head/sparsity): plain decoder
+        # path is the canonical behavior, identical when flags are off.
         if self.slots is None:
             return self.decoder(sparsify(h, self.cfg.sparse_k))
         read_vec = self.slots.read(h)
@@ -222,6 +232,7 @@ class TMTModel(nn.Module):
         return logits, stop
 
     def _slot_write(self, h: torch.Tensor) -> None:
+        # EXPERIMENTAL (slots): no-op unless slots are on.
         if self.slots is not None:
             self.slots.write(h)
 
@@ -379,7 +390,7 @@ class TMTModel(nn.Module):
         return loss.detach(), logits.detach(), stop.detach(), comp
 
     @torch.no_grad()
-    def _ema_track(self):
+    def _ema_track(self):  # EXPERIMENTAL (EMA; no-op at decay 0)
         if self.cfg.ema_decay <= 0.0:
             return
         if self.ema_state is None:
@@ -414,6 +425,7 @@ class TMTModel(nn.Module):
                 raise ValueError(f"{name} byte out of range [0, 255]: {v!r}")
         self.train()
         loss, logits, stop, comp = self._update(curr, next_, end)
+        # EXPERIMENTAL (replay): skipped entirely when replay_buf is None.
         if self.replay_buf is not None:
             self.replay_buf.append((curr, next_, end, float(loss)))
             if self.cfg.replay_k > 0:
