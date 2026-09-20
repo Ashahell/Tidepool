@@ -112,3 +112,41 @@ def test_selective_matches_fd():
             got, ref = got[mask], ref[mask]
         rel = (got - ref).abs().max() / ref.abs().max().clamp_min(1e-12)
         assert rel.item() < 1e-4, (name, rel.item())
+
+def _selective_ingw_model():
+    cfg = TMTConfig(dim=3, layers=1, update_every=1000, decay_groups=1,
+                    grad_clip=float("inf"), selective=True)
+    m = TMTModel(cfg).double()
+    torch.manual_seed(4)
+    for p in m.parameters():
+        torch.nn.init.uniform_(p, -0.5, 0.5)
+    m.reset()
+    return m
+
+def test_selective_ingw_matches_fd():
+    m = _selective_ingw_model()
+    seq = [65, 66, 67, 68]
+    _total_loss(m, seq)
+    names = list(_all_params(m).keys()) + ["gate_w", "in_bias", "in_w"]
+    for name in names:
+        if name == "gate_w":
+            p = m.layers[0].gate_w
+        elif name == "in_bias":
+            p = m.layers[0].in_bias
+        elif name == "in_w":
+            p = m.layers[0].in_w
+        else:
+            p = _all_params(m)[name]
+        got = p.grad.detach().clone().double()
+        ref = _fd_grad(m, seq, p)
+        if name == "embed":
+            mask = torch.tensor([i not in set(seq[1:]) for i in range(256)])
+            got, ref = got[mask], ref[mask]
+        rel = (got - ref).abs().max() / ref.abs().max().clamp_min(1e-12)
+        assert rel.item() < 1e-4, (name, rel.item())
+
+def test_ingw_inert_when_flag_off():
+    m = TMTModel(TMTConfig(dim=8, layers=1))
+    m.training_step(65, 66, False)
+    assert m.layers[0].in_bias.grad is None
+    assert m.layers[0].in_w.grad is None

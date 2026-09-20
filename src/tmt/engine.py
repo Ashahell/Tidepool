@@ -111,7 +111,9 @@ def load_checkpoint(model, path: str, allow_missing: bool = False) -> dict:
         # is exact, not silent. Anything else still raises.
         missing = set(model.state_dict()) - set(sd)
         unexpected = set(sd) - set(model.state_dict())
-        if missing and not unexpected and all("gate" in k for k in missing):
+        # Backfill gate/input-gate keys only (mathematical zeros by init).
+        if missing and not unexpected and all(
+                ("gate" in k or "ing" in k) for k in missing):
             print(f"warning: backfilling {len(missing)} gate keys with zeros")
             model.load_state_dict(sd, strict=False)
         else:
@@ -153,7 +155,7 @@ def gen_bytes(model, seed_byte: int, max_bytes: int = 256, stop_threshold: float
             enc = model.encoder(x)
             h = enc
             for layer in model.layers:
-                h, _, _ = layer(enc, h)
+                h, _, _, _ = layer(enc, h)
             logits, stop = model._decode(h)
             nxt = int(torch.argmax(logits[0]).item())
             out.append(nxt & 0xFF)
