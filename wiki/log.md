@@ -1,6 +1,11 @@
 # Wiki Log
 
 ## [2026-09-19] lint | 0 issues found, 0 auto-fixed
+- Synthesis rewrite fully clean.
+
+## [2026-09-19] ingest | Review 3 adopted: causal-hierarchy rewrite
+
+## [2026-09-19] lint | 0 issues found, 0 auto-fixed
 - Architecture synthesis fully clean.
 
 ## [2026-09-19] ingest | Architecture and evidence rewritten current
