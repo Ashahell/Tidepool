@@ -42,6 +42,11 @@ class ExternalStore(nn.Module):
 
     def reset(self) -> None:
         with torch.no_grad():
+            # Detach first: K/V may still link the previous episode's
+            # freed graph (attached in record/BPTT mode). Zeroing alone
+            # keeps the stale grad_fn and poisons the next backward.
+            self.K.detach_()
+            self.V.detach_()
             self.K.zero_()
             self.V.zero_()
         self.protect = [0.0] * self.nslots

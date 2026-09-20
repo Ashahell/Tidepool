@@ -43,11 +43,14 @@ def probe_recall(model, rng, trials=20, plen=4, flen=8):
 
 
 def probe_addressing(model, rng, trials=20, plen=4, flen=8):
-    """Payload-in-top4 anchor attention at the query point (chance ~4/13).
-    Returns mean fraction. Requires anchor_bank; else None."""
+    """Payload-in-top4 store attention at the query point.
+    Anchor bank: payload anchors tick<=plen (returns (score, chance)).
+    External store: payload slots write_tick<=plen (same shape).
+    Returns None when neither store is present."""
     import torch.nn.functional as F
-    if model.anchor_bank is None:
+    if model.anchor_bank is None and model.extstore is None:
         return None
+    use_ext = model.anchor_bank is None
     model.eval()
     bank = model.anchor_bank
     scores = []
@@ -58,6 +61,29 @@ def probe_addressing(model, rng, trials=20, plen=4, flen=8):
             model.reset()
             for b in pre + bytes(QUERY_MARKER):
                 model.ingest(b)
+            if use_ext:
+                st = model.extstore
+                n = st.nslots
+                used = [i for i in range(n) if st.write_tick[i] >= 0]
+                if not used:
+                    continue
+                hq = model.encoder(torch.tensor([QUERY_MARKER[-1]]))
+                hhq = hq
+                for layer in model.layers:
+                    hhq, _, _, _ = layer(hhq, hhq)
+                q = st._norm(hhq @ st.Wq.T).squeeze(0)
+                K = st.K.detach()
+                sims = (K[used] @ q)
+                ku = len(used)
+                kk = min(4, ku)
+                top = {used[j] for j in
+                       torch.topk(sims, kk).indices.tolist()}
+                # Slot ticks are 0-indexed steps; payload = ticks < plen.
+                payload_slots = {i for i in used
+                                 if st.write_tick[i] < plen}
+                scores.append((len(top & payload_slots) / kk,
+                               len(payload_slots) / ku if ku else 0))
+                continue
             n = len(bank.keys)
             if n == 0:
                 continue
@@ -103,6 +129,8 @@ def main() -> None:
     ap.add_argument("--anchor-dk", type=int, default=0)
     ap.add_argument("--freeze-trunk", action="store_true")
     ap.add_argument("--probe-flen", type=int, default=8)
+    ap.add_argument("--ext-slots", type=int, default=0)
+    ap.add_argument("--ext-dk", type=int, default=0)
     args = ap.parse_args()
     if args.ptr_w > 0 and not args.bptt:
         raise SystemExit("--ptr-w requires --bptt (attached key ring)")
@@ -111,7 +139,8 @@ def main() -> None:
     cfg = TMTConfig(dim=args.dim, layers=args.layers, lr=args.lr,
                     fw_dk=args.fw_dk, aux_fw_w=args.aux_fw_w,
                     ptr_w=args.ptr_w, anchor_every=args.anchor_every,
-                    anchor_max=args.anchor_max, anchor_dk=args.anchor_dk)
+                    anchor_max=args.anchor_max, anchor_dk=args.anchor_dk,
+                    ext_slots=args.ext_slots, ext_dk=args.ext_dk)
     model = TMTModel(cfg)
     if args.freeze_trunk:
         model.freeze_trunk()

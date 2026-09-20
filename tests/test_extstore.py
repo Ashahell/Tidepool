@@ -94,11 +94,29 @@ def test_wiring_end_to_end():
         assert (m.extstore.V != 0).any()  # a step must write
 
 
-def test_store_params_owned_by_optimizer():
-    # Anchor-bug class: store created after opt leaves addressing untrained.
+def test_store_params_owned_by_optimizer():    # Anchor-bug class: store created after opt leaves addressing untrained.
     from tmt.config import TMTConfig
     from tmt.model import TMTModel
     m = TMTModel(TMTConfig(dim=16, layers=1, ext_slots=8, ext_dk=4))
     owned = {id(p) for g in m.opt.param_groups for p in g["params"]}
     for p in m.extstore.parameters():
         assert id(p) in owned
+
+
+def test_bptt_two_episodes_no_stale_graph():
+    # Bug class: K/V attached in record mode still link the previous
+    # episode's freed graph after reset (zero_ keeps grad_fn) — the
+    # second finish_episode then faults. reset/finish must detach.
+    from tmt.config import TMTConfig
+    from tmt.model import TMTModel
+    torch.manual_seed(0)
+    m = TMTModel(TMTConfig(dim=16, layers=1, ext_slots=8, ext_dk=4))
+    m.freeze_trunk()
+    for _ in range(2):
+        m.reset()
+        total = None
+        for i in range(40):
+            loss, _, _ = m.training_step(65 + (i % 5), 66, False,
+                                         defer=True)
+            total = loss if total is None else total + loss
+        m.finish_episode(total)  # must not raise on episode 2

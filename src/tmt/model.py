@@ -551,6 +551,10 @@ class TMTModel(nn.Module):
             for layer in self.layers:
                 if layer.fw is not None:
                     layer.fw.S.detach_()
+            # Extstore K/V likewise (attached in record/BPTT mode).
+            if self.extstore is not None:
+                self.extstore.K.detach_()
+                self.extstore.V.detach_()
 
     @torch.no_grad()
     def _ema_track(self):  # EXPERIMENTAL (EMA; no-op at decay 0)
