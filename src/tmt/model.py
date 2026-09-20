@@ -18,6 +18,17 @@ def sparsify(h: torch.Tensor, k: int) -> torch.Tensor:
     top, _ = torch.topk(h.abs(), k, dim=-1)
     thresh = top[..., -1].unsqueeze(-1)
     return torch.where(h.abs() >= thresh, h, torch.zeros_like(h))
+
+
+def write_mask(enc_vec: torch.Tensor, k: int, dim: int) -> torch.Tensor:
+    """Top-k write mask over dims (k <= 0 = all ones). Input-dependent
+    constant for parameter gradients: exact RTRL needs no new terms
+    beyond scaling the direct-write inhomogeneous by this mask."""
+    if k <= 0 or k >= dim:
+        return torch.ones(dim, dtype=enc_vec.dtype)
+    top, _ = torch.topk(enc_vec.abs(), k)
+    thresh = top[-1]
+    return (enc_vec.abs() >= thresh).to(enc_vec.dtype)
 from .slots import SlotMemory
 
 class Encoder(nn.Module):
@@ -38,10 +49,11 @@ class ByteDecoder(nn.Module):
         return self.decode(x), torch.sigmoid(self.stop(x))
 
 class RTULayer(nn.Module):
-    def __init__(self, dim: int, selective: bool = False):
+    def __init__(self, dim: int, selective: bool = False, write_k: int = 0):
         super().__init__()
         self.dim = dim
         self.use_selective = selective
+        self.write_k = write_k
         self.decay_bias = nn.Parameter(torch.zeros(dim))
         self.gate_w = nn.Parameter(torch.zeros(dim))
         self.in_bias = nn.Parameter(torch.zeros(dim))
@@ -64,7 +76,8 @@ class RTULayer(nn.Module):
         else:
             decay = torch.sigmoid(self.decay_bias)
             ingate = torch.ones_like(decay)
-        state = decay * self.states + ingate.unsqueeze(0) * enc
+        wmask = write_mask(enc.squeeze(0), self.write_k, self.dim)
+        state = decay * self.states + ingate.unsqueeze(0) * (wmask.unsqueeze(0) * enc)
         out = x + self.silu(self.weights(self.norm(state)))
         return out, state, decay, ingate
 
@@ -74,7 +87,7 @@ class TMTModel(nn.Module):
         self.cfg = cfg
         self.encoder = Encoder(cfg.dim)
         self.decoder = ByteDecoder(cfg.dim)
-        self.layers = nn.ModuleList([RTULayer(cfg.dim, cfg.selective) for _ in range(cfg.layers)])
+        self.layers = nn.ModuleList([RTULayer(cfg.dim, cfg.selective, cfg.write_k) for _ in range(cfg.layers)])
         # NOTE (task-1 deviation): slots/mem_head are created BEFORE the
         # optimizer so AdamW owns the query/key/mem_head params; the brief's
         # "after replay_buf lines" placement would leave them untrained.
@@ -335,8 +348,10 @@ class TMTModel(nn.Module):
                 one_hot = torch.zeros_like(layer.embedtrace)
                 one_hot[curr] += 1.0
                 # Direct input Jacobian is g-scaled under selective input
-                # gating (g == 1 exactly when the flag is off).
-                layer.embedtrace.mul_(d).add_(one_hot * g.unsqueeze(0))
+                # gating (g == 1 exactly when the flag is off) and masked
+                # by the write mask (ones when write_k <= 0).
+                wmask = write_mask(enc.detach().squeeze(0), layer.write_k, layer.dim)
+                layer.embedtrace.mul_(d).add_(one_hot * (g * wmask).unsqueeze(0))
                 layer.decaytrace.mul_(d).add_(d * (1.0 - d) * layer.states.squeeze(0))
                 if layer.use_selective:
                     enc_vec = enc.detach().squeeze(0)
@@ -346,10 +361,13 @@ class TMTModel(nn.Module):
                     wg = layer.gate_w.detach()
                     layer.embedtrace.add_(one_hot * (d * (1.0 - d) * s_old * wg).unsqueeze(0))
                     iw = layer.in_w.detach()
-                    layer.ingtrace.mul_(d).add_(g * (1.0 - g) * enc_vec)
+                    # In-gate inhomogeneous terms flow through the masked
+                    # write (s = d·s_old + g·(m⊙e)): scale by wmask.
+                    layer.ingtrace.mul_(d).add_(wmask * g * (1.0 - g) * enc_vec)
                     layer.ingwmat.mul_(d.unsqueeze(1)).add_(
-                        torch.diag(g * (1.0 - g) * enc_vec * enc_vec))
-                    layer.embedtrace.add_(one_hot * (g * (1.0 - g) * enc_vec * iw).unsqueeze(0))
+                        torch.diag(wmask * g * (1.0 - g) * enc_vec * enc_vec))
+                    # In-gate term flows through the masked write: scale by wmask.
+                    layer.embedtrace.add_(one_hot * ((g * (1.0 - g) * enc_vec * iw) * wmask).unsqueeze(0))
                 layer.states.copy_(s)
         self._accum += 1
         if self._accum >= self.cfg.update_every:
