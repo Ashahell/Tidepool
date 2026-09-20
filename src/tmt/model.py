@@ -114,15 +114,18 @@ class TMTModel(nn.Module):
         # EXPERIMENTAL (all inert unless flagged — see tests/test_canonical.py):
         self.slots = SlotMemory(cfg.dim, cfg.slots, temp=cfg.slot_temp) if cfg.slots > 0 else None
         self.mem_head = nn.Linear(2 * cfg.dim, 256) if cfg.slots > 0 else None
-        self.opt = torch.optim.AdamW(self.parameters(), lr=cfg.lr)
-        self._accum = 0
-        self._deferred: list = []  # defer-mode stash for finish_episode
-        self._trunk_frozen = False
         # EXPERIMENTAL (anchors): top-layer MARCH-style bank; None = off.
+        # Created BEFORE the optimizer (like slots/mem_head) so AdamW
+        # owns the key/router params — after opt would leave them
+        # permanently untrained (measured 2026-09-20: addressing frozen).
         self.anchor_bank = (AnchorBank(cfg.dim, cfg.anchor_dk, cfg.anchor_max)
                             if cfg.anchor_every > 0 and cfg.anchor_max > 0
                             and cfg.anchor_dk > 0 else None)
         self._anchor_tick = 0
+        self.opt = torch.optim.AdamW(self.parameters(), lr=cfg.lr)
+        self._accum = 0
+        self._deferred: list = []  # defer-mode stash for finish_episode
+        self._trunk_frozen = False
         self.last_components: dict = {}
         self.ema_state = None  # EXPERIMENTAL (EMA shadows; inert at ema_decay 0)
         self.replay_buf = (deque(maxlen=cfg.replay_size)  # EXPERIMENTAL (replay; None at size 0)

@@ -64,8 +64,6 @@ def test_wiring_end_to_end():
     assert logits.shape == (1, 256)
     loss, _, _ = m.training_step(65, 66, False)
     assert loss.isfinite()
-
-
 def test_freeze_trunk():
     from tmt.config import TMTConfig
     from tmt.model import TMTModel
@@ -80,3 +78,15 @@ def test_freeze_trunk():
     m.reset()
     loss, _, _ = m.training_step(65, 66, False)
     assert loss.isfinite()
+
+
+def test_anchor_params_owned_by_optimizer():
+    # Regression: bank created after opt leaves keys/router permanently
+    # untrained (addressing metric frozen to 4 decimals over 3k episodes).
+    from tmt.config import TMTConfig
+    from tmt.model import TMTModel
+    m = TMTModel(TMTConfig(dim=16, layers=1, anchor_every=2,
+                           anchor_max=8, anchor_dk=4))
+    owned = {id(p) for g in m.opt.param_groups for p in g["params"]}
+    for p in m.anchor_bank.parameters():
+        assert id(p) in owned
