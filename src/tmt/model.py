@@ -307,7 +307,8 @@ class TMTModel(nn.Module):
                         else:
                             layer.in_w.grad += iwrec
 
-    def _update(self, curr: int, next_: Optional[int], end: bool, defer: bool = False):
+    def _update(self, curr: int, next_: Optional[int], end: bool, defer: bool = False,
+                aux_query: bool = False):
         self.train()
         c = torch.tensor([curr], dtype=torch.long)
         enc = self.encoder(c)
@@ -344,8 +345,11 @@ class TMTModel(nn.Module):
             # EXPERIMENTAL (aux_fw_w): force the retrieval path alone to
             # predict — CE(decoder(r_top), next). Closes the residual
             # bypass (h+r lets the loss ignore r); pressures keys/values
-            # to be informative. Inert at weight 0.
-            if self.cfg.aux_fw_w > 0.0:
+            # to be informative. Inert at weight 0. Gated to predictable
+            # (query) positions by the caller: at unpredictable positions
+            # it teaches retrieval to be useless (measured 2026-09-19).
+            t_fw = None
+            if self.cfg.aux_fw_w > 0.0 and aux_query:
                 r_top = None
                 for layer in self.layers:
                     if layer.fw is not None:
@@ -488,14 +492,15 @@ class TMTModel(nn.Module):
                     p.copy_(saved[n])
 
     def training_step(self, curr: int, next_: Optional[int], end: bool,
-                      defer: bool = False):
+                      defer: bool = False, aux_query: bool = False):
         for name, v in (("curr", curr), ("next", next_)):
             if v is None and name == "next":
                 continue
             if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 255:
                 raise ValueError(f"{name} byte out of range [0, 255]: {v!r}")
         self.train()
-        loss, logits, stop, comp = self._update(curr, next_, end, defer=defer)
+        loss, logits, stop, comp = self._update(curr, next_, end, defer=defer,
+                                              aux_query=aux_query)
         if defer and self.replay_buf is not None:
             raise ValueError("defer is incompatible with replay")
         # EXPERIMENTAL (replay): skipped entirely when replay_buf is None.

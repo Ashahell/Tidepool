@@ -77,7 +77,8 @@ def main() -> None:
         total = None
         for i in range(len(ep) - 1):
             loss, _, _ = model.training_step(ep[i], ep[i + 1], i == len(ep) - 2,
-                                             defer=args.bptt)
+                                             defer=args.bptt,
+                                             aux_query=(i in qpos))
             if args.bptt:
                 total = loss if total is None else total + loss
             n += 1

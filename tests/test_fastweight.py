@@ -63,7 +63,9 @@ def test_aux_fw_pressures_keys():
                            update_every=2))
     m.reset()
     m.opt.zero_grad()
-    loss, _, _ = m.training_step(65, 66, False)
+    # aux is gated to caller-flagged query positions (everywhere-else it
+    # teaches retrieval to be useless); flag this step as query.
+    loss, _, _ = m.training_step(65, 66, False, aux_query=True)
     assert m.last_components["l_fw"] > 0.0
     assert m.layers[0].fw.Wk.grad is not None
     assert bool((m.layers[0].fw.Wk.grad != 0).any())
