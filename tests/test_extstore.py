@@ -78,3 +78,27 @@ def test_reset_clears():
     st.reset()
     r, _ = st.retrieve(torch.ones(1, 4))
     assert torch.allclose(r, torch.zeros(1, 4))
+
+
+def test_wiring_end_to_end():
+    from tmt.config import TMTConfig
+    from tmt.model import TMTModel
+    m = TMTModel(TMTConfig(dim=16, layers=1, ext_slots=8, ext_dk=4))
+    assert m.extstore is not None
+    m.reset()
+    logits, _ = m(torch.tensor([65], dtype=torch.long))
+    assert logits.shape == (1, 256)
+    loss, _, _ = m.training_step(65, 66, False)
+    assert loss.isfinite()
+    with torch.no_grad():
+        assert (m.extstore.V != 0).any()  # a step must write
+
+
+def test_store_params_owned_by_optimizer():
+    # Anchor-bug class: store created after opt leaves addressing untrained.
+    from tmt.config import TMTConfig
+    from tmt.model import TMTModel
+    m = TMTModel(TMTConfig(dim=16, layers=1, ext_slots=8, ext_dk=4))
+    owned = {id(p) for g in m.opt.param_groups for p in g["params"]}
+    for p in m.extstore.parameters():
+        assert id(p) in owned

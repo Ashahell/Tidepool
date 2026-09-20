@@ -35,6 +35,8 @@ class TMTConfig:
     anchor_every: int = 0
     anchor_max: int = 0
     anchor_dk: int = 0
+    ext_slots: int = 0
+    ext_dk: int = 0
 
     def __post_init__(self):
         for name in ("dim", "layers", "lr", "temp", "slot_temp", "update_every",

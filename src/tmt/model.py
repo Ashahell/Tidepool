@@ -39,6 +39,7 @@ def write_mask(enc_vec: torch.Tensor, k: int, dim: int) -> torch.Tensor:
 from .slots import SlotMemory
 from .fastweight import FastWeightMemory
 from .anchors import AnchorBank
+from .extstore import ExternalStore
 
 class Encoder(nn.Module):
     def __init__(self, dim: int):
@@ -122,6 +123,10 @@ class TMTModel(nn.Module):
                             if cfg.anchor_every > 0 and cfg.anchor_max > 0
                             and cfg.anchor_dk > 0 else None)
         self._anchor_tick = 0
+        # EXPERIMENTAL (extstore): true external KV memory; None = off.
+        # Before opt (anchor-bug class): AdamW must own Wk/Wq/Wv/gates.
+        self.extstore = (ExternalStore(cfg.dim, cfg.ext_dk, cfg.ext_slots)
+                         if cfg.ext_slots > 0 and cfg.ext_dk > 0 else None)
         self.opt = torch.optim.AdamW(self.parameters(), lr=cfg.lr)
         self._accum = 0
         self._deferred: list = []  # defer-mode stash for finish_episode
@@ -162,6 +167,8 @@ class TMTModel(nn.Module):
         if self.anchor_bank is not None:  # EXPERIMENTAL
             self.anchor_bank.reset()
             self._anchor_tick = 0
+        if self.extstore is not None:  # EXPERIMENTAL
+            self.extstore.reset()
 
     def load_numpy_params(self, P: dict) -> None:
         """Copy float64 NumPy reference params into torch params; reset traces."""
@@ -247,11 +254,14 @@ class TMTModel(nn.Module):
         for layer in self.layers:
             h, state, _, _ = layer(enc, h)
             states.append(state)
-        # EXPERIMENTAL (anchors): retrieve-only (no checkpoint on the
-        # stateless path); empty bank reads zero.
+        # EXPERIMENTAL (anchors + extstore): retrieve-only on the
+        # stateless path; empty stores read zero.
         if self.anchor_bank is not None:
             h = self._anchor_step(h, states[-1], defer=False,
                                   checkpoint=False)
+        if self.extstore is not None:
+            r, _ = self.extstore.retrieve(h)
+            h = h + r
         logits, stop = self._decode(h)
         return logits, states
 
@@ -367,6 +377,13 @@ class TMTModel(nn.Module):
             decays.append(decay)
             ingates.append(ingate)
         h = self._anchor_step(h, states[-1], defer)  # EXPERIMENTAL (no-op off)
+        # EXPERIMENTAL (extstore): gated write every step + content
+        # read fused. Keys attached only in defer/BPTT (record) — the
+        # store needs cross-step credit to learn addressing.
+        if self.extstore is not None:
+            self.extstore.write(h, record=defer)
+            r, _ = self.extstore.retrieve(h)
+            h = h + r
         for s in states:
             # Frozen trunk: states carry no grad path; retain_grad would raise.
             if s.requires_grad and not getattr(self, "_trunk_frozen", False):
@@ -614,6 +631,11 @@ class TMTModel(nn.Module):
         # EXPERIMENTAL (anchors): mirror training (checkpoint + fuse).
         if self.anchor_bank is not None:
             h = self._anchor_step(h, self.layers[-1].states, defer=False)
+        # EXPERIMENTAL (extstore): mirror training (write + fuse).
+        if self.extstore is not None:
+            self.extstore.write(h, record=False)
+            r, _ = self.extstore.retrieve(h)
+            h = h + r
         logits, stop = self._decode(h)
         self._slot_write(h)
         return logits, stop
