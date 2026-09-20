@@ -1,6 +1,14 @@
 # Wiki Log
 
 ## [2026-09-19] lint | 1 issues found, 0 auto-fixed
+- Known 610 B/s false positive only; structure verified (48 sections), scoped clean.
+
+## [2026-09-19] ingest | Input gate 60k: identical without
+- Disposition: Update
+- Raw: raw/tmt-torch/2026-09-19-ingate-60k.md
+- Updated: Vulkan4Aros Training Data
+
+## [2026-09-19] lint | 1 issues found, 0 auto-fixed
 - Known 610 B/s false positive only; structure verified (47 sections), scoped clean.
 
 ## [2026-09-19] ingest | Sparse readout: blur is upstream
