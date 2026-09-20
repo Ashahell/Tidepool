@@ -52,6 +52,8 @@ def main() -> None:
     ap.add_argument("--out", default="runs/copydense")
     ap.add_argument("--probe-every", type=int, default=10000)
     ap.add_argument("--fw-dk", type=int, default=0)
+    ap.add_argument("--bptt", action="store_true",
+                    help="episode BPTT: defer backward to episode end")
     args = ap.parse_args()
     torch.manual_seed(args.seed)
     rng = random.Random(args.seed + 1)
@@ -71,14 +73,20 @@ def main() -> None:
         pre, post = bytes(ep).split(bytes(QUERY_MARKER))
         qpos = set(range(len(pre), len(ep) - 1))
         model.reset()
+        total = None
         for i in range(len(ep) - 1):
-            loss, _, _ = model.training_step(ep[i], ep[i + 1], i == len(ep) - 2)
+            loss, _, _ = model.training_step(ep[i], ep[i + 1], i == len(ep) - 2,
+                                             defer=args.bptt)
+            if args.bptt:
+                total = loss if total is None else total + loss
             n += 1
             key = "q" if i in qpos else "o"
             w.writerow([n, f"{float(loss.item()):.4f}" if key == "q" else "",
                         "" if key == "q" else f"{float(loss.item()):.4f}", ""])
             if n >= args.steps:
                 break
+        if args.bptt and total is not None:
+            model.finish_episode(total)
         if n % args.probe_every < len(ep) or n >= args.steps:
             r = probe_recall(model, random.Random(args.seed + 2))
             el = time.time() - t0

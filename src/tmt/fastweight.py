@@ -29,7 +29,7 @@ class FastWeightMemory(nn.Module):
     def _norm(x: torch.Tensor) -> torch.Tensor:
         return x / (x.norm(dim=-1, keepdim=True) + 1e-8)
 
-    def step(self, h: torch.Tensor) -> torch.Tensor:
+    def step(self, h: torch.Tensor, detach: bool = True) -> torch.Tensor:
         k = self._norm(h @ self.Wk.T)  # (1, dk)
         q = self._norm(h @ self.Wq.T)  # (1, dk)
         v = h @ self.Wv.T  # (1, d)
@@ -40,5 +40,5 @@ class FastWeightMemory(nn.Module):
         # traces). The read uses attached S_new, so Wk/Wq/Wv/beta all
         # keep single-step grads; no credit flows across steps in v1.
         S_new = self.S + beta * ((v - vpred).T @ k)  # (d, dk) outer
-        self.S = S_new.detach()
+        self.S = S_new.detach() if detach else S_new
         return h + (S_new @ q.T).T  # (1, d)

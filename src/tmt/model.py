@@ -81,7 +81,7 @@ class RTULayer(nn.Module):
         self.register_buffer("ingtrace", torch.zeros(dim))
         self.register_buffer("ingwmat", torch.zeros(dim, dim))
 
-    def forward(self, enc: torch.Tensor, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
+    def forward(self, enc: torch.Tensor, x: torch.Tensor, defer: bool = False) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         if self.use_selective:  # EXPERIMENTAL
             decay = torch.sigmoid(self.decay_bias + self.gate_w * enc_v)
             ingate = torch.sigmoid(self.in_bias + self.in_w * enc_v)
@@ -89,10 +89,15 @@ class RTULayer(nn.Module):
             decay = torch.sigmoid(self.decay_bias)
             ingate = torch.ones_like(decay)
         wmask = write_mask(enc.squeeze(0), self.write_k, self.dim)  # EXPERIMENTAL when write_k > 0
-        state = decay * self.states + ingate.unsqueeze(0) * (wmask.unsqueeze(0) * enc)
+        # Defer mode (episode BPTT): read a clone — the per-step commit
+        # mutates self.states in place, which would corrupt the delayed
+        # backward's saved tensors. Clone is bit-exact; canonical path
+        # (defer=False) untouched.
+        s_old = self.states.clone() if defer else self.states
+        state = decay * s_old + ingate.unsqueeze(0) * (wmask.unsqueeze(0) * enc)
         out = x + self.silu(self.weights(self.norm(state)))
         if self.fw is not None:  # EXPERIMENTAL (fast-weight retrieval)
-            out = self.fw.step(out)
+            out = self.fw.step(out, detach=not defer)
         return out, state, decay, ingate
 
 class TMTModel(nn.Module):
@@ -110,6 +115,7 @@ class TMTModel(nn.Module):
         self.mem_head = nn.Linear(2 * cfg.dim, 256) if cfg.slots > 0 else None
         self.opt = torch.optim.AdamW(self.parameters(), lr=cfg.lr)
         self._accum = 0
+        self._deferred: list = []  # defer-mode stash for finish_episode
         self.last_components: dict = {}
         self.ema_state = None  # EXPERIMENTAL (EMA shadows; inert at ema_decay 0)
         self.replay_buf = (deque(maxlen=cfg.replay_size)  # EXPERIMENTAL (replay; None at size 0)
@@ -142,6 +148,7 @@ class TMTModel(nn.Module):
                 if layer.fw is not None:  # EXPERIMENTAL
                     layer.fw.reset()
         self._accum = 0
+        self._deferred.clear()
 
     def load_numpy_params(self, P: dict) -> None:
         """Copy float64 NumPy reference params into torch params; reset traces."""
@@ -255,70 +262,10 @@ class TMTModel(nn.Module):
             temp = self._adaptive_temp(entropy)
             return int(torch.distributions.Categorical(logits=logits / temp).sample().item())
 
-    def _update(self, curr: int, next_: Optional[int], end: bool):
-        self.train()
-        c = torch.tensor([curr], dtype=torch.long)
-        enc = self.encoder(c)
-        h = enc
-        states, decays, ingates = [], [], []
-        for layer in self.layers:
-            h, state, decay, ingate = layer(enc, h)
-            states.append(state)
-            decays.append(decay)
-            ingates.append(ingate)
-        for s in states:
-            s.retain_grad()
-        logits, stop = self._decode(h)
-        x = h
-        # Slot write AFTER decode: read-before-write per step.
-        self._slot_write(h)
-        # Activation-scale regularizer: forces per-token feature variance
-        # toward >= 1 (population var across dim of the single-token state).
-        loss = torch.maximum(
-            torch.tensor(0.0),
-            1.0 - torch.sqrt(x.var(unbiased=False) + 1e-4),
-        ) * self.cfg.w_var
-        if self.cfg.decay_groups > 1:
-            loss = loss + 0.01 * self.decay_diversity_penalty()
-        t_pred = t_ce = t_stop = None
-        if next_ is not None:
-            with torch.no_grad():
-                tgt = self.encoder(torch.tensor([next_], dtype=torch.long))
-            t_pred = self.cfg.w_pred * torch.mean((x - tgt) ** 2)
-            t_ce = self.cfg.w_ce * (F.cross_entropy(logits.view(-1, 256), torch.tensor([next_])))
-            target_stop = torch.tensor([[1.0 if end else 0.0]])
-            t_stop = self.cfg.w_stop * torch.mean((stop - target_stop) ** 2)
-            loss = loss + t_pred + t_ce + t_stop
-        with torch.no_grad():
-            parts = [t for t in (t_pred, t_ce, t_stop) if t is not None]
-            l_var = float((loss - sum(parts)).detach()) if parts else float(loss.detach())
-            comp = {
-                "l_var": l_var,
-                "l_pred": float(t_pred.detach()) if t_pred is not None else 0.0,
-                "l_ce": float(t_ce.detach()) if t_ce is not None else 0.0,
-                "l_stop": float(t_stop.detach()) if t_stop is not None else 0.0,
-                "state_norm": float(sum(torch.linalg.norm(s).detach() for s in states)),
-            }
-        # update_every is sequential accumulation across evolving timesteps,
-        # NOT a minibatch: never detach/reset state at accumulation boundaries.
-        if self._accum == 0:
-            self.opt.zero_grad()
-        loss.backward()
-        # Gradient classification: embedding + decay_bias influence future
-        # steps through persistent state -> RTRL trace corrections below.
-        # weights/LayerNorm/decoder/stop-head affect only the current step
-        # -> plain autograd is exact, no correction.
-        # Selective gate (vector w_g): same treatment as decay_bias —
-        # autograd holds the direct term, the correction adds only the
-        # recurrent part dL_t/ds_t·d·G_{t-1}.
-        # _rtrl_enabled (default True) is the Task 5 ablation gate.
-        # Decay accumulation rule: autograd already holds each step's DIRECT
-        # term dL_t/ds_t·d(1-d)·s_{t-1} (decay's only in-graph use is the
-        # state computation). The correction adds ONLY the recurrent part
-        # dL_t/ds_t·d·T_{t-1}; their sum is dL_t/ds_t·T_t, exactly the
-        # upstream overwrite term — but accumulated across steps instead of
-        # discarded. (Upstream overwrites because it steps every __call__;
-        # under accumulation, overwrite keeps the last step only.)
+    def _rtrl_correct_step(self, states, decays):
+        # One RTRL correction for a single step's (states, decays), using
+        # that step's state grads. Called per step normally, or once per
+        # stashed step by finish_episode in defer mode.
         with torch.no_grad():
             if getattr(self, "_rtrl_enabled", True):
                 for i, layer in enumerate(self.layers):
@@ -359,6 +306,80 @@ class TMTModel(nn.Module):
                             layer.in_w.grad = iwrec
                         else:
                             layer.in_w.grad += iwrec
+
+    def _update(self, curr: int, next_: Optional[int], end: bool, defer: bool = False):
+        self.train()
+        c = torch.tensor([curr], dtype=torch.long)
+        enc = self.encoder(c)
+        h = enc
+        states, decays, ingates = [], [], []
+        for layer in self.layers:
+            h, state, decay, ingate = layer(enc, h, defer=defer)
+            states.append(state)
+            decays.append(decay)
+            ingates.append(ingate)
+        for s in states:
+            s.retain_grad()
+        logits, stop = self._decode(h)
+        x = h
+        # Slot write AFTER decode: read-before-write per step.
+        self._slot_write(h)
+        # Activation-scale regularizer: forces per-token feature variance
+        # toward >= 1 (population var across dim of the single-token state).
+        loss = torch.maximum(
+            torch.tensor(0.0),
+            1.0 - torch.sqrt(x.var(unbiased=False) + 1e-4),
+        ) * self.cfg.w_var
+        if self.cfg.decay_groups > 1:
+            loss = loss + 0.01 * self.decay_diversity_penalty()
+        t_pred = t_ce = t_stop = None
+        if next_ is not None:
+            with torch.no_grad():
+                tgt = self.encoder(torch.tensor([next_], dtype=torch.long))
+            t_pred = self.cfg.w_pred * torch.mean((x - tgt) ** 2)
+            t_ce = self.cfg.w_ce * (F.cross_entropy(logits.view(-1, 256), torch.tensor([next_])))
+            target_stop = torch.tensor([[1.0 if end else 0.0]])
+            t_stop = self.cfg.w_stop * torch.mean((stop - target_stop) ** 2)
+            loss = loss + t_pred + t_ce + t_stop
+        with torch.no_grad():
+            parts = [t for t in (t_pred, t_ce, t_stop) if t is not None]
+            l_var = float((loss - sum(parts)).detach()) if parts else float(loss.detach())
+            comp = {
+                "l_var": l_var,
+                "l_pred": float(t_pred.detach()) if t_pred is not None else 0.0,
+                "l_ce": float(t_ce.detach()) if t_ce is not None else 0.0,
+                "l_stop": float(t_stop.detach()) if t_stop is not None else 0.0,
+                "state_norm": float(sum(torch.linalg.norm(s).detach() for s in states)),
+            }
+        # update_every is sequential accumulation across evolving timesteps,
+        # NOT a minibatch: never detach/reset state at accumulation boundaries.
+        # EXPERIMENTAL defer (episode BPTT): skip per-step backward +
+        # correction + step; finish_episode runs one backward over the
+        # summed episode loss with a correction per stashed step. Traces
+        # and state commits below still run every step (recurrences).
+        if defer:
+            self._deferred.append((states, decays))
+        else:
+            if self._accum == 0:
+                self.opt.zero_grad()
+            loss.backward()
+            self._rtrl_correct_step(states, decays)
+        # Gradient classification: embedding + decay_bias influence future
+        # steps through persistent state -> RTRL trace corrections below.
+        # weights/LayerNorm/decoder/stop-head affect only the current step
+        # -> plain autograd is exact, no correction.
+        # Selective gate (vector w_g): same treatment as decay_bias —
+        # autograd holds the direct term, the correction adds only the
+        # recurrent part dL_t/ds_t·d·G_{t-1}.
+        # _rtrl_enabled (default True) is the Task 5 ablation gate.
+        # Decay accumulation rule: autograd already holds each step's DIRECT
+        # term dL_t/ds_t·d(1-d)·s_{t-1} (decay's only in-graph use is the
+        # state computation). The correction adds ONLY the recurrent part
+        # dL_t/ds_t·d·T_{t-1}; their sum is dL_t/ds_t·T_t, exactly the
+        # upstream overwrite term — but accumulated across steps instead of
+        # discarded. (Upstream overwrites because it steps every __call__;
+        # under accumulation, overwrite keeps the last step only.)
+        # (inline correction moved to _rtrl_correct_step; see above)
         # RTRL trace update (matches MLX dummy-gradient correction).
         with torch.no_grad():
             for i, layer in enumerate(self.layers):
@@ -389,14 +410,38 @@ class TMTModel(nn.Module):
                     # In-gate term flows through the masked write: scale by wmask.
                     layer.embedtrace.add_(one_hot * ((g * (1.0 - g) * enc_vec * iw) * wmask).unsqueeze(0))
                 layer.states.copy_(s)
-        self._accum += 1
-        if self._accum >= self.cfg.update_every:
-            torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.grad_clip)
-            self.opt.step()
-            self.opt.zero_grad()
-            self._accum = 0
-            self._ema_track()
-        return loss.detach(), logits.detach(), stop.detach(), comp
+        if not defer:
+            self._accum += 1
+            if self._accum >= self.cfg.update_every:
+                torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.grad_clip)
+                self.opt.step()
+                self.opt.zero_grad()
+                self._accum = 0
+                self._ema_track()
+            return loss.detach(), logits.detach(), stop.detach(), comp
+        # Defer mode: caller sums the attached loss and calls
+        # finish_episode once per episode (episode BPTT).
+        return loss, logits.detach(), stop.detach(), comp
+
+    def finish_episode(self, total: torch.Tensor) -> None:
+        """EXPERIMENTAL (episode BPTT): one backward over the summed
+        deferred-episode loss, one RTRL correction per stashed step,
+        then clip/step/zero. Stash cleared; S re-detaches next step."""
+        self.train()
+        self.opt.zero_grad()
+        total.backward()
+        for states, decays in self._deferred:
+            self._rtrl_correct_step(states, decays)
+        torch.nn.utils.clip_grad_norm_(self.parameters(), self.cfg.grad_clip)
+        self.opt.step()
+        self.opt.zero_grad()
+        self._accum = 0
+        self._ema_track()
+        self._deferred.clear()
+        with torch.no_grad():
+            for layer in self.layers:
+                if layer.fw is not None:
+                    layer.fw.S.detach_()
 
     @torch.no_grad()
     def _ema_track(self):  # EXPERIMENTAL (EMA; no-op at decay 0)
@@ -426,14 +471,17 @@ class TMTModel(nn.Module):
                 for n, p in self.named_parameters():
                     p.copy_(saved[n])
 
-    def training_step(self, curr: int, next_: Optional[int], end: bool):
+    def training_step(self, curr: int, next_: Optional[int], end: bool,
+                      defer: bool = False):
         for name, v in (("curr", curr), ("next", next_)):
             if v is None and name == "next":
                 continue
             if isinstance(v, bool) or not isinstance(v, int) or not 0 <= v <= 255:
                 raise ValueError(f"{name} byte out of range [0, 255]: {v!r}")
         self.train()
-        loss, logits, stop, comp = self._update(curr, next_, end)
+        loss, logits, stop, comp = self._update(curr, next_, end, defer=defer)
+        if defer and self.replay_buf is not None:
+            raise ValueError("defer is incompatible with replay")
         # EXPERIMENTAL (replay): skipped entirely when replay_buf is None.
         if self.replay_buf is not None:
             self.replay_buf.append((curr, next_, end, float(loss)))
