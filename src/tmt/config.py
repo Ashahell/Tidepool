@@ -28,7 +28,7 @@ class TMTConfig:
     slot_temp: float = 1.0
 
     def __post_init__(self):
-        for name in ("dim", "layers", "lr", "temp", "update_every",
+        for name in ("dim", "layers", "lr", "temp", "slot_temp", "update_every",
                      "grad_clip", "decay_groups"):
             if getattr(self, name) <= 0:
                 raise ValueError(f"{name} must be positive, got {getattr(self, name)}")

@@ -2,7 +2,7 @@
 
 ## Setup
 - Base: `configs/copy_selective.yaml` (dim 128, layers 4, lr 1e-4, selective) — verified against `configs/small_lr1e4.yaml` (dim/layers/lr identical).
-- Slots arm: `configs/copy_slots.yaml` (= base + `slots: 16`, `aux_mem_w: 1.0`), committed.
+- Slots arm: `configs/copy_slots.yaml` (= base + `slots: 16`, `aux_mem_w: 1.0`), reused (file predates branch).
 - Control arm: base unchanged (slots off).
 - Both arms: 30000 steps pure-copy (`--copy-frac 1.0`, `--epochs 1`, data `data/vk4a_train`), trained under v2 HEAD `9c421e7` (shared keys + temperature + usage protection).
   - slots_on ckpt: `runs/slots_on_v2/model.safetensors` (final loss 7.119, CE 5.516)
