@@ -110,7 +110,7 @@ on the recurrent trunk.
 
 **Update 2026-09-20: the MARCH-anchor variant is also killed.** Minimal
 top-layer anchors on the frozen trunk (BPTT, keys stepping): one seed
-rose to 0.36 vs 0.27 chance at 3k episodes, but the dose-matched
+rose to 0.3625 vs 0.267 chance at 3k episodes, but the dose-matched
 extension sat at chance with recall 0/20 throughout — the rise did
 not replicate. An en-route repeat of the slots mistake (bank created
 after the optimizer; first discriminator measured a frozen router)
