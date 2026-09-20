@@ -455,3 +455,7 @@
 ## [2026-09-19] lint | 2 suspects judged false positive
 - "0.99 per layer" (final-assessment.md): raw has ">0.99\nper layer" line-wrapped, same content.
 - "100000" (final-assessment.md): reproduction command (`copy_dense.py --steps`), not a measurement claim.
+
+## [2026-09-20] archival | Project closed on the evidence
+- Terminal note: raw/tmt-torch/2026-09-20-archival.md (four statements)
+- Tag: archive-2026-09-20; suite 128 green; lint 0 errors
