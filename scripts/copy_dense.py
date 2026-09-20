@@ -55,11 +55,15 @@ def main() -> None:
     ap.add_argument("--bptt", action="store_true",
                     help="episode BPTT: defer backward to episode end")
     ap.add_argument("--aux-fw-w", type=float, default=0.0)
+    ap.add_argument("--ptr-w", type=float, default=0.0)
     args = ap.parse_args()
+    if args.ptr_w > 0 and not args.bptt:
+        raise SystemExit("--ptr-w requires --bptt (attached key ring)")
     torch.manual_seed(args.seed)
     rng = random.Random(args.seed + 1)
     cfg = TMTConfig(dim=args.dim, layers=args.layers, lr=args.lr,
-                    fw_dk=args.fw_dk, aux_fw_w=args.aux_fw_w)
+                    fw_dk=args.fw_dk, aux_fw_w=args.aux_fw_w,
+                    ptr_w=args.ptr_w)
     model = TMTModel(cfg)
     from pathlib import Path
     out = Path(args.out)
@@ -75,10 +79,14 @@ def main() -> None:
         qpos = set(range(len(pre), len(ep) - 1))
         model.reset()
         total = None
+        plen = len(post)
         for i in range(len(ep) - 1):
+            is_q = i in qpos
+            ptr = list(range(plen)) if (is_q and args.ptr_w > 0) else None
             loss, _, _ = model.training_step(ep[i], ep[i + 1], i == len(ep) - 2,
                                              defer=args.bptt,
-                                             aux_query=(i in qpos))
+                                             aux_query=is_q,
+                                             ptr_targets=ptr)
             if args.bptt:
                 total = loss if total is None else total + loss
             n += 1

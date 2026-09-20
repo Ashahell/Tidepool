@@ -67,14 +67,37 @@ episode-BPTT (for algorithm); aux retrieval pressure (both forms).
   (tests/test_canonical.py); every number ingested to raw with
   sources; wiki lint 0 errors throughout.
 
-## Open invoice (what would change the verdict)
+## Open invoice (ranked honestly, per review 2026-09-19)
 
-1. RTRL trace extension to the fast-weight store S (days of
-   derivation) — the only remaining prescribed mechanism work.
-2. Span-supervised pointer loss / contrastive key objectives.
-3. Scale far outside the tested regime (orders, not multiples).
-4. A different task family where retention is the binding constraint
-   (here it demonstrably is not).
+1. **RTRL trace extension to S** — real remaining mechanism work.
+   The only item that is a plan rather than a hope.
+2. **Span-supervised / contrastive key objectives** — plausible.
+   Directly targets the isolated failure (addressing at chance).
+   Currently executing under a hard box (see Kill criteria).
+3. **Scale far outside the tested regime** — a hope, not a plan.
+   5x scale and 1M steps did not create the algorithm; orders of
+   magnitude more might, but there is no mechanism story for why.
+4. **A different task family** — partially an admission the current
+   task exposes the failure correctly. Changing the task to one that
+   does not require genuine addressing is not progress toward the
+   original goal.
+
+Anti-cope note: "retention is present" (slow channels, linear
+decodability) is a diagnostic clue, not progress. Storage without
+retrieval is not memory in any useful sense. The fast-weight result
+cuts the other way too: the ONLY mechanism that ever moved a memory
+number still failed to generalize — a strong negative signal about
+the whole approach at this scale and regime.
+
+## Kill criteria (binding)
+
+If addressing (payload-in-top4 on fresh copy4/after8 episodes, chance
+~0.31) remains at chance after the span-supervised attempt below plus
+at most one contrastive variant, we RETIRE the pure recurrent +
+side-store hypothesis for this goal. No further tricks in this
+family. The remaining assets (eval discipline, RSI infrastructure,
+proof standards) transfer to a fundamentally different mechanism or
+a re-scoped goal (online feature extractor + external memory).
 
 ## Reproduction
 

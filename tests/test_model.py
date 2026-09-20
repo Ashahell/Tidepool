@@ -32,10 +32,10 @@ def test_training_step_reports_components():
     m = TMTModel(TMTConfig(dim=16, layers=1))
     loss, _, _ = m.training_step(65, 66, False)
     comp = m.last_components
-    assert set(comp) == {"l_var", "l_pred", "l_ce", "l_stop", "l_fw", "state_norm"}
+    assert set(comp) == {"l_var", "l_pred", "l_ce", "l_stop", "l_fw", "l_ptr", "state_norm"}
     assert all(math.isfinite(v) for v in comp.values())
     assert comp["state_norm"] >= 0.0
-    total = comp["l_var"] + comp["l_pred"] + comp["l_ce"] + comp["l_stop"] + comp["l_fw"]
+    total = comp["l_var"] + comp["l_pred"] + comp["l_ce"] + comp["l_stop"] + comp["l_fw"] + comp["l_ptr"]
     assert abs(total - float(loss.item())) < 1e-4
 
 def test_ingest_advances_state_without_learning():

@@ -21,16 +21,21 @@ class FastWeightMemory(nn.Module):
         self.bb = nn.Parameter(torch.zeros(()))
         self.register_buffer("S", torch.zeros(dim, dk))
         self.last_r = None  # attached readout of the current step (aux loss)
+        self.last_q = None  # attached query of the current step (ptr loss)
+        self.key_ring: list = []  # attached per-step keys (defer/BPTT only)
 
     def reset(self) -> None:
         with torch.no_grad():
             self.S.zero_()
+        self.last_r = None
+        self.last_q = None
+        self.key_ring.clear()
 
     @staticmethod
     def _norm(x: torch.Tensor) -> torch.Tensor:
         return x / (x.norm(dim=-1, keepdim=True) + 1e-8)
 
-    def step(self, h: torch.Tensor, detach: bool = True) -> torch.Tensor:
+    def step(self, h: torch.Tensor, detach: bool = True, record: bool = False) -> torch.Tensor:
         k = self._norm(h @ self.Wk.T)  # (1, dk)
         q = self._norm(h @ self.Wq.T)  # (1, dk)
         v = h @ self.Wv.T  # (1, d)
@@ -43,4 +48,10 @@ class FastWeightMemory(nn.Module):
         S_new = self.S + beta * ((v - vpred).T @ k)  # (d, dk) outer
         self.S = S_new.detach() if detach else S_new
         self.last_r = (S_new @ q.T).T  # attached; valid within this step
+        self.last_q = q  # attached; valid within this step
+        # Record attached keys ONLY in defer/BPTT mode: in single-step
+        # mode the graph is freed each step and a ring would hold
+        # dead tensors (the freed-graph bug). Caller passes record=defer.
+        if record:
+            self.key_ring.append(k)
         return h + self.last_r  # (1, d)

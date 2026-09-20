@@ -97,7 +97,7 @@ class RTULayer(nn.Module):
         state = decay * s_old + ingate.unsqueeze(0) * (wmask.unsqueeze(0) * enc)
         out = x + self.silu(self.weights(self.norm(state)))
         if self.fw is not None:  # EXPERIMENTAL (fast-weight retrieval)
-            out = self.fw.step(out, detach=not defer)
+            out = self.fw.step(out, detach=not defer, record=defer)
         return out, state, decay, ingate
 
 class TMTModel(nn.Module):
@@ -308,7 +308,7 @@ class TMTModel(nn.Module):
                             layer.in_w.grad += iwrec
 
     def _update(self, curr: int, next_: Optional[int], end: bool, defer: bool = False,
-                aux_query: bool = False):
+                aux_query: bool = False, ptr_targets: Optional[list] = None):
         self.train()
         c = torch.tensor([curr], dtype=torch.long)
         enc = self.encoder(c)
@@ -333,7 +333,7 @@ class TMTModel(nn.Module):
         ) * self.cfg.w_var
         if self.cfg.decay_groups > 1:
             loss = loss + 0.01 * self.decay_diversity_penalty()
-        t_pred = t_ce = t_stop = t_fw = None
+        t_pred = t_ce = t_stop = t_fw = t_ptr = None
         if next_ is not None:
             with torch.no_grad():
                 tgt = self.encoder(torch.tensor([next_], dtype=torch.long))
@@ -360,8 +360,29 @@ class TMTModel(nn.Module):
                     self.decoder.decode(r_top).view(-1, 256),
                     torch.tensor([next_]))
                 loss = loss + t_fw
+            # EXPERIMENTAL (ptr_w): span-supervised pointer loss. At a
+            # query token with known payload key indices, the current
+            # query must put mass on those keys: NLL of mean-softmax
+            # over (q @ K_past / temp)[targets]. Requires defer/BPTT
+            # (the key ring holds attached tensors only then); inert at
+            # weight 0 or without targets. Final boxed addressing attempt.
+            t_ptr = None
+            if self.cfg.ptr_w > 0.0 and ptr_targets:
+                ring = qcur = None
+                for layer in self.layers:
+                    if layer.fw is not None and len(layer.fw.key_ring) > 1:
+                        ring, qcur = layer.fw.key_ring, layer.fw.last_q
+                if ring is None:
+                    raise ValueError("ptr_targets requires defer/BPTT with fw")
+                K = torch.cat(ring[:-1], dim=0)  # past keys, exclude current
+                idx = [j for j in ptr_targets if 0 <= j < K.shape[0]]
+                if idx:
+                    ls = torch.log_softmax(
+                        (qcur @ K.T).squeeze(0) / self.cfg.ptr_temp, dim=0)
+                    t_ptr = -self.cfg.ptr_w * ls[torch.tensor(idx)].mean()
+                    loss = loss + t_ptr
         with torch.no_grad():
-            parts = [t for t in (t_pred, t_ce, t_stop, t_fw) if t is not None]
+            parts = [t for t in (t_pred, t_ce, t_stop, t_fw, t_ptr) if t is not None]
             l_var = float((loss - sum(parts)).detach()) if parts else float(loss.detach())
             comp = {
                 "l_var": l_var,
@@ -369,6 +390,7 @@ class TMTModel(nn.Module):
                 "l_ce": float(t_ce.detach()) if t_ce is not None else 0.0,
                 "l_stop": float(t_stop.detach()) if t_stop is not None else 0.0,
                 "l_fw": float(t_fw.detach()) if t_fw is not None else 0.0,
+                "l_ptr": float(t_ptr.detach()) if t_ptr is not None else 0.0,
                 "state_norm": float(sum(torch.linalg.norm(s).detach() for s in states)),
             }
         # update_every is sequential accumulation across evolving timesteps,
@@ -492,7 +514,8 @@ class TMTModel(nn.Module):
                     p.copy_(saved[n])
 
     def training_step(self, curr: int, next_: Optional[int], end: bool,
-                      defer: bool = False, aux_query: bool = False):
+                      defer: bool = False, aux_query: bool = False,
+                      ptr_targets: Optional[list] = None):
         for name, v in (("curr", curr), ("next", next_)):
             if v is None and name == "next":
                 continue
@@ -500,7 +523,8 @@ class TMTModel(nn.Module):
                 raise ValueError(f"{name} byte out of range [0, 255]: {v!r}")
         self.train()
         loss, logits, stop, comp = self._update(curr, next_, end, defer=defer,
-                                              aux_query=aux_query)
+                                              aux_query=aux_query,
+                                              ptr_targets=ptr_targets)
         if defer and self.replay_buf is not None:
             raise ValueError("defer is incompatible with replay")
         # EXPERIMENTAL (replay): skipped entirely when replay_buf is None.
