@@ -81,3 +81,47 @@ def test_slots_smoke_and_roundtrip(tmp_path):
     for a, b in zip(m.parameters(), m2.parameters()):
         assert torch.equal(a, b)
     assert torch.equal(m.slots.slots, m2.slots.slots)
+
+def test_shared_key_used_both_sides():
+    from tmt.slots import SlotMemory
+    sm = SlotMemory(dim=16, n_slots=8)
+    assert sm.key is not None
+    torch.manual_seed(0)
+    v = torch.randn(16)
+    sm.write(v)
+    out = sm.read(v)
+    import torch.nn.functional as F
+    assert F.cosine_similarity(out, v, dim=0).item() > 0.0
+
+def test_usage_protects_hot_slots():
+    torch.manual_seed(1)
+    sm = SlotMemory(dim=16, n_slots=4)
+    v0 = torch.randn(16)
+    with torch.no_grad():
+        sm.slots[0].copy_(v0)
+        sm.usage[0] = 100.0
+    v = v0 + 0.01 * torch.randn(16)
+    before = sm.slots.detach().clone()
+    sm.write(v)
+    # usage 100 >> thresh 5: protect factor ~1e-41, slot0 bit-stable.
+    assert (sm.slots[0] - before[0]).abs().max() < 1e-6
+    assert float(sm.usage[0]) > 99.0
+
+def test_temperature_scales_sharpness():
+    import torch.nn.functional as F
+    from tmt.slots import SlotMemory as SM
+    torch.manual_seed(2)
+    a = SM(dim=16, n_slots=8)
+    a.cfg_temp = 0.1
+    b = SM(dim=16, n_slots=8)
+    b.cfg_temp = 10.0
+    v = torch.randn(16)
+    for m in (a, b):
+        for _ in range(5):
+            m.write(torch.randn(16))
+        m.write(v)
+    ea = -(F.softmax(a.key(a.slots) @ a.query(v) / a.cfg_temp, dim=0) *
+           F.log_softmax(a.key(a.slots) @ a.query(v) / a.cfg_temp, dim=0)).sum().item()
+    eb = -(F.softmax(b.key(b.slots) @ b.query(v) / b.cfg_temp, dim=0) *
+           F.log_softmax(b.key(b.slots) @ b.query(v) / b.cfg_temp, dim=0)).sum().item()
+    assert ea < eb

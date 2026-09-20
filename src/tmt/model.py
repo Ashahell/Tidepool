@@ -62,7 +62,7 @@ class TMTModel(nn.Module):
         # NOTE (task-1 deviation): slots/mem_head are created BEFORE the
         # optimizer so AdamW owns the query/key/mem_head params; the brief's
         # "after replay_buf lines" placement would leave them untrained.
-        self.slots = SlotMemory(cfg.dim, cfg.slots) if cfg.slots > 0 else None
+        self.slots = SlotMemory(cfg.dim, cfg.slots, temp=cfg.slot_temp) if cfg.slots > 0 else None
         self.mem_head = nn.Linear(2 * cfg.dim, 256) if cfg.slots > 0 else None
         self.opt = torch.optim.AdamW(self.parameters(), lr=cfg.lr)
         self._accum = 0
