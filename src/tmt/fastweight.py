@@ -35,5 +35,10 @@ class FastWeightMemory(nn.Module):
         v = h @ self.Wv.T  # (1, d)
         beta = torch.sigmoid(h @ self.wb + self.bb).mean()
         vpred = (self.S @ k.T).T  # (1, d)
-        self.S = self.S + beta * ((v - vpred).T @ k)  # (d, dk) outer
-        return h + (self.S @ q.T).T  # (1, d)
+        # Detach across steps: S is persistent memory, not an autograd
+        # chain (same regime as RTU states, which use buffers + RTRL
+        # traces). The read uses attached S_new, so Wk/Wq/Wv/beta all
+        # keep single-step grads; no credit flows across steps in v1.
+        S_new = self.S + beta * ((v - vpred).T @ k)  # (d, dk) outer
+        self.S = S_new.detach()
+        return h + (S_new @ q.T).T  # (1, d)

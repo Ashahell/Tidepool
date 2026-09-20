@@ -51,10 +51,12 @@ def main() -> None:
     ap.add_argument("--seed", type=int, default=7)
     ap.add_argument("--out", default="runs/copydense")
     ap.add_argument("--probe-every", type=int, default=10000)
+    ap.add_argument("--fw-dk", type=int, default=0)
     args = ap.parse_args()
     torch.manual_seed(args.seed)
     rng = random.Random(args.seed + 1)
-    cfg = TMTConfig(dim=args.dim, layers=args.layers, lr=args.lr)
+    cfg = TMTConfig(dim=args.dim, layers=args.layers, lr=args.lr,
+                    fw_dk=args.fw_dk)
     model = TMTModel(cfg)
     from pathlib import Path
     out = Path(args.out)
