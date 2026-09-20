@@ -54,11 +54,12 @@ def main() -> None:
     ap.add_argument("--fw-dk", type=int, default=0)
     ap.add_argument("--bptt", action="store_true",
                     help="episode BPTT: defer backward to episode end")
+    ap.add_argument("--aux-fw-w", type=float, default=0.0)
     args = ap.parse_args()
     torch.manual_seed(args.seed)
     rng = random.Random(args.seed + 1)
     cfg = TMTConfig(dim=args.dim, layers=args.layers, lr=args.lr,
-                    fw_dk=args.fw_dk)
+                    fw_dk=args.fw_dk, aux_fw_w=args.aux_fw_w)
     model = TMTModel(cfg)
     from pathlib import Path
     out = Path(args.out)

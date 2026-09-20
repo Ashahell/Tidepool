@@ -332,7 +332,7 @@ class TMTModel(nn.Module):
         ) * self.cfg.w_var
         if self.cfg.decay_groups > 1:
             loss = loss + 0.01 * self.decay_diversity_penalty()
-        t_pred = t_ce = t_stop = None
+        t_pred = t_ce = t_stop = t_fw = None
         if next_ is not None:
             with torch.no_grad():
                 tgt = self.encoder(torch.tensor([next_], dtype=torch.long))
@@ -341,14 +341,30 @@ class TMTModel(nn.Module):
             target_stop = torch.tensor([[1.0 if end else 0.0]])
             t_stop = self.cfg.w_stop * torch.mean((stop - target_stop) ** 2)
             loss = loss + t_pred + t_ce + t_stop
+            # EXPERIMENTAL (aux_fw_w): force the retrieval path alone to
+            # predict — CE(decoder(r_top), next). Closes the residual
+            # bypass (h+r lets the loss ignore r); pressures keys/values
+            # to be informative. Inert at weight 0.
+            if self.cfg.aux_fw_w > 0.0:
+                r_top = None
+                for layer in self.layers:
+                    if layer.fw is not None:
+                        r_top = layer.fw.last_r
+                if r_top is None:
+                    raise ValueError("aux_fw_w > 0 requires fw_dk > 0")
+                t_fw = self.cfg.aux_fw_w * F.cross_entropy(
+                    self.decoder.decode(r_top).view(-1, 256),
+                    torch.tensor([next_]))
+                loss = loss + t_fw
         with torch.no_grad():
-            parts = [t for t in (t_pred, t_ce, t_stop) if t is not None]
+            parts = [t for t in (t_pred, t_ce, t_stop, t_fw) if t is not None]
             l_var = float((loss - sum(parts)).detach()) if parts else float(loss.detach())
             comp = {
                 "l_var": l_var,
                 "l_pred": float(t_pred.detach()) if t_pred is not None else 0.0,
                 "l_ce": float(t_ce.detach()) if t_ce is not None else 0.0,
                 "l_stop": float(t_stop.detach()) if t_stop is not None else 0.0,
+                "l_fw": float(t_fw.detach()) if t_fw is not None else 0.0,
                 "state_norm": float(sum(torch.linalg.norm(s).detach() for s in states)),
             }
         # update_every is sequential accumulation across evolving timesteps,

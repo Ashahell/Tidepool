@@ -53,6 +53,22 @@ def test_reset_zeroes():
     assert bool((m.S == 0).all())
 
 
+def test_aux_fw_pressures_keys():
+    from tmt.config import TMTConfig
+    from tmt.model import TMTModel
+    torch.manual_seed(0)
+    # update_every=2: first step backprops without stepping, so grads
+    # are still readable after training_step returns.
+    m = TMTModel(TMTConfig(dim=16, layers=1, fw_dk=4, aux_fw_w=1.0,
+                           update_every=2))
+    m.reset()
+    m.opt.zero_grad()
+    loss, _, _ = m.training_step(65, 66, False)
+    assert m.last_components["l_fw"] > 0.0
+    assert m.layers[0].fw.Wk.grad is not None
+    assert bool((m.layers[0].fw.Wk.grad != 0).any())
+
+
 def test_wiring_end_to_end():
     from tmt.config import TMTConfig
     from tmt.model import TMTModel

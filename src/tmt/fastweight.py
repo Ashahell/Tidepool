@@ -20,6 +20,7 @@ class FastWeightMemory(nn.Module):
         self.wb = nn.Parameter(torch.zeros(dim))
         self.bb = nn.Parameter(torch.zeros(()))
         self.register_buffer("S", torch.zeros(dim, dk))
+        self.last_r = None  # attached readout of the current step (aux loss)
 
     def reset(self) -> None:
         with torch.no_grad():
@@ -41,4 +42,5 @@ class FastWeightMemory(nn.Module):
         # keep single-step grads; no credit flows across steps in v1.
         S_new = self.S + beta * ((v - vpred).T @ k)  # (d, dk) outer
         self.S = S_new.detach() if detach else S_new
-        return h + (S_new @ q.T).T  # (1, d)
+        self.last_r = (S_new @ q.T).T  # attached; valid within this step
+        return h + self.last_r  # (1, d)
