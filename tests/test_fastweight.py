@@ -51,3 +51,17 @@ def test_reset_zeroes():
     m.step(torch.ones(1, 4))
     m.reset()
     assert bool((m.S == 0).all())
+
+
+def test_wiring_end_to_end():
+    from tmt.config import TMTConfig
+    from tmt.model import TMTModel
+    m = TMTModel(TMTConfig(dim=16, layers=1, fw_dk=4))
+    assert m.layers[0].fw is not None  # retrieval must actually be wired
+    m.reset()
+    logits, states = m(torch.tensor([65], dtype=torch.long))
+    assert logits.shape == (1, 256)
+    loss, sampled, stop = m.training_step(65, 66, False)
+    assert loss.isfinite()
+    with torch.no_grad():
+        assert bool((m.layers[0].fw.S != 0).any())  # a step must write S

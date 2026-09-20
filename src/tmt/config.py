@@ -28,6 +28,7 @@ class TMTConfig:
     slots: int = 0
     aux_mem_w: float = 0.0
     slot_temp: float = 1.0
+    fw_dk: int = 0
 
     def __post_init__(self):
         for name in ("dim", "layers", "lr", "temp", "slot_temp", "update_every",

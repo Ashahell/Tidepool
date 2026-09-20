@@ -37,6 +37,7 @@ def write_mask(enc_vec: torch.Tensor, k: int, dim: int) -> torch.Tensor:
     thresh = top[-1]
     return (enc_vec.abs() >= thresh).to(enc_vec.dtype)
 from .slots import SlotMemory
+from .fastweight import FastWeightMemory
 
 class Encoder(nn.Module):
     def __init__(self, dim: int):
@@ -56,12 +57,16 @@ class ByteDecoder(nn.Module):
         return self.decode(x), torch.sigmoid(self.stop(x))
 
 class RTULayer(nn.Module):
-    # EXPERIMENTAL params below (selective gates, write mask): inert unless flagged.
-    def __init__(self, dim: int, selective: bool = False, write_k: int = 0):
+    # EXPERIMENTAL params below (selective gates, write mask, fast
+    # weights): inert unless flagged.
+    def __init__(self, dim: int, selective: bool = False, write_k: int = 0,
+                 fw_dk: int = 0):
         super().__init__()
         self.dim = dim
         self.use_selective = selective
         self.write_k = write_k
+        self.fw = (FastWeightMemory(dim, fw_dk)  # EXPERIMENTAL (fw_dk > 0)
+                   if fw_dk > 0 else None)
         self.decay_bias = nn.Parameter(torch.zeros(dim))
         self.gate_w = nn.Parameter(torch.zeros(dim))
         self.in_bias = nn.Parameter(torch.zeros(dim))
@@ -86,6 +91,8 @@ class RTULayer(nn.Module):
         wmask = write_mask(enc.squeeze(0), self.write_k, self.dim)  # EXPERIMENTAL when write_k > 0
         state = decay * self.states + ingate.unsqueeze(0) * (wmask.unsqueeze(0) * enc)
         out = x + self.silu(self.weights(self.norm(state)))
+        if self.fw is not None:  # EXPERIMENTAL (fast-weight retrieval)
+            out = self.fw.step(out)
         return out, state, decay, ingate
 
 class TMTModel(nn.Module):
@@ -94,7 +101,7 @@ class TMTModel(nn.Module):
         self.cfg = cfg
         self.encoder = Encoder(cfg.dim)
         self.decoder = ByteDecoder(cfg.dim)
-        self.layers = nn.ModuleList([RTULayer(cfg.dim, cfg.selective, cfg.write_k) for _ in range(cfg.layers)])
+        self.layers = nn.ModuleList([RTULayer(cfg.dim, cfg.selective, cfg.write_k, cfg.fw_dk) for _ in range(cfg.layers)])
         # NOTE (task-1 deviation): slots/mem_head are created BEFORE the
         # optimizer so AdamW owns the query/key/mem_head params; the brief's
         # "after replay_buf lines" placement would leave them untrained.
@@ -132,6 +139,8 @@ class TMTModel(nn.Module):
                 layer.gatetrace.zero_()
                 layer.ingtrace.zero_()
                 layer.ingwmat.zero_()
+                if layer.fw is not None:  # EXPERIMENTAL
+                    layer.fw.reset()
         self._accum = 0
 
     def load_numpy_params(self, P: dict) -> None:
