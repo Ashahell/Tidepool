@@ -1,6 +1,14 @@
 # Wiki Log
 
 ## [2026-09-19] lint | 1 issues found, 0 auto-fixed
+- Known 610 B/s false positive only; structure verified (41 sections), scoped clean.
+
+## [2026-09-19] ingest | Transformer anchor: task hard, period
+- Disposition: Update
+- Raw: raw/tmt-torch/2026-09-19-transformer-anchor.md
+- Updated: Vulkan4Aros Training Data
+
+## [2026-09-19] lint | 1 issues found, 0 auto-fixed
 - Known 610 B/s false positive only; structure verified (40 sections), scoped clean.
 
 ## [2026-09-19] ingest | LR sweep moves prediction, not recall
