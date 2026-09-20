@@ -47,3 +47,36 @@ def test_reset_empties():
     b.reset()
     r, w = b.retrieve(torch.ones(1, 2))
     assert torch.allclose(r, torch.zeros(1, 2))
+
+
+def test_wiring_end_to_end():
+    from tmt.config import TMTConfig
+    from tmt.model import TMTModel
+    m = TMTModel(TMTConfig(dim=16, layers=1, anchor_every=2,
+                           anchor_max=8, anchor_dk=4))
+    assert m.anchor_bank is not None
+    m.reset()
+    for b in (65, 66, 67, 68, 69):
+        m.ingest(b)
+    # 5 ticks, every 2 → checkpoints at 2, 4 → 2 anchors
+    assert len(m.anchor_bank.values) == 2
+    logits, _ = m(torch.tensor([65], dtype=torch.long))
+    assert logits.shape == (1, 256)
+    loss, _, _ = m.training_step(65, 66, False)
+    assert loss.isfinite()
+
+
+def test_freeze_trunk():
+    from tmt.config import TMTConfig
+    from tmt.model import TMTModel
+    m = TMTModel(TMTConfig(dim=16, layers=1, anchor_every=2,
+                           anchor_max=8, anchor_dk=4))
+    m.freeze_trunk()
+    assert m._trunk_frozen
+    assert not any(p.requires_grad for p in m.encoder.parameters())
+    assert not any(p.requires_grad for p in m.layers.parameters())
+    assert any(p.requires_grad for p in m.decoder.parameters())
+    assert any(p.requires_grad for p in m.anchor_bank.parameters())
+    m.reset()
+    loss, _, _ = m.training_step(65, 66, False)
+    assert loss.isfinite()

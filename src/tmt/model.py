@@ -38,6 +38,7 @@ def write_mask(enc_vec: torch.Tensor, k: int, dim: int) -> torch.Tensor:
     return (enc_vec.abs() >= thresh).to(enc_vec.dtype)
 from .slots import SlotMemory
 from .fastweight import FastWeightMemory
+from .anchors import AnchorBank
 
 class Encoder(nn.Module):
     def __init__(self, dim: int):
@@ -116,6 +117,12 @@ class TMTModel(nn.Module):
         self.opt = torch.optim.AdamW(self.parameters(), lr=cfg.lr)
         self._accum = 0
         self._deferred: list = []  # defer-mode stash for finish_episode
+        self._trunk_frozen = False
+        # EXPERIMENTAL (anchors): top-layer MARCH-style bank; None = off.
+        self.anchor_bank = (AnchorBank(cfg.dim, cfg.anchor_dk, cfg.anchor_max)
+                            if cfg.anchor_every > 0 and cfg.anchor_max > 0
+                            and cfg.anchor_dk > 0 else None)
+        self._anchor_tick = 0
         self.last_components: dict = {}
         self.ema_state = None  # EXPERIMENTAL (EMA shadows; inert at ema_decay 0)
         self.replay_buf = (deque(maxlen=cfg.replay_size)  # EXPERIMENTAL (replay; None at size 0)
@@ -149,6 +156,9 @@ class TMTModel(nn.Module):
                     layer.fw.reset()
         self._accum = 0
         self._deferred.clear()
+        if self.anchor_bank is not None:  # EXPERIMENTAL
+            self.anchor_bank.reset()
+            self._anchor_tick = 0
 
     def load_numpy_params(self, P: dict) -> None:
         """Copy float64 NumPy reference params into torch params; reset traces."""
@@ -234,6 +244,11 @@ class TMTModel(nn.Module):
         for layer in self.layers:
             h, state, _, _ = layer(enc, h)
             states.append(state)
+        # EXPERIMENTAL (anchors): retrieve-only (no checkpoint on the
+        # stateless path); empty bank reads zero.
+        if self.anchor_bank is not None:
+            h = self._anchor_step(h, states[-1], defer=False,
+                                  checkpoint=False)
         logits, stop = self._decode(h)
         return logits, states
 
@@ -262,7 +277,36 @@ class TMTModel(nn.Module):
             temp = self._adaptive_temp(entropy)
             return int(torch.distributions.Categorical(logits=logits / temp).sample().item())
 
+    def _anchor_step(self, h: torch.Tensor, top_state: torch.Tensor,
+                     defer: bool, checkpoint: bool = True) -> torch.Tensor:
+        # EXPERIMENTAL (anchors): cadence checkpoint of the top-layer
+        # state + retrieve/fuse. Values always stored detached; keys
+        # attached only in defer/BPTT mode (same regime as fast weights).
+        bank = self.anchor_bank
+        if bank is None:
+            return h
+        if checkpoint:
+            self._anchor_tick += 1
+            if self._anchor_tick % self.cfg.anchor_every == 0:
+                bank.checkpoint(top_state, record=defer)
+        r, _ = bank.retrieve(h)
+        return h + r
+
+    def freeze_trunk(self) -> None:
+        """EXPERIMENTAL (anchors): freeze encoder + RTU layers so only
+        anchor keys/router, decoder, and other heads learn. Lets the
+        new retrieval path do the learning; isolates whether pointing
+        is solvable without moving the trunk."""
+        self._trunk_frozen = True
+        self.encoder.requires_grad_(False)
+        for layer in self.layers:
+            layer.requires_grad_(False)
+
     def _rtrl_correct_step(self, states, decays):
+        # Frozen trunk (anchor runs): correction would manufacture grads
+        # for requires_grad_(False) params — skip entirely.
+        if getattr(self, "_trunk_frozen", False):
+            return
         # One RTRL correction for a single step's (states, decays), using
         # that step's state grads. Called per step normally, or once per
         # stashed step by finish_episode in defer mode.
@@ -319,8 +363,11 @@ class TMTModel(nn.Module):
             states.append(state)
             decays.append(decay)
             ingates.append(ingate)
+        h = self._anchor_step(h, states[-1], defer)  # EXPERIMENTAL (no-op off)
         for s in states:
-            s.retain_grad()
+            # Frozen trunk: states carry no grad path; retain_grad would raise.
+            if s.requires_grad and not getattr(self, "_trunk_frozen", False):
+                s.retain_grad()
         logits, stop = self._decode(h)
         x = h
         # Slot write AFTER decode: read-before-write per step.
@@ -561,6 +608,9 @@ class TMTModel(nn.Module):
         for layer in self.layers:
             h, state, _, _ = layer(enc, h)
             layer.states.copy_(state)
+        # EXPERIMENTAL (anchors): mirror training (checkpoint + fuse).
+        if self.anchor_bank is not None:
+            h = self._anchor_step(h, self.layers[-1].states, defer=False)
         logits, stop = self._decode(h)
         self._slot_write(h)
         return logits, stop
