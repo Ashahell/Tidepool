@@ -112,8 +112,10 @@ def load_checkpoint(model, path: str, allow_missing: bool = False) -> dict:
         missing = set(model.state_dict()) - set(sd)
         unexpected = set(sd) - set(model.state_dict())
         # Backfill gate/input-gate keys only (mathematical zeros by init).
+        gateish = {"gate_w", "gatetrace", "in_bias", "in_w",
+                   "ingtrace", "ingwmat"}
         if missing and not unexpected and all(
-                ("gate" in k or "ing" in k) for k in missing):
+                k.split(".")[-1] in gateish for k in missing):
             print(f"warning: backfilling {len(missing)} gate keys with zeros")
             model.load_state_dict(sd, strict=False)
         else:
