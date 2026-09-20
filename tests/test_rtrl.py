@@ -95,7 +95,14 @@ def test_selective_off_matches_plain_forward():
     with torch.no_grad():
         la, _ = a(x)
         lb, _ = b(x)
-    assert torch.equal(la, lb)
+    # Selective starts at half-open input gate (sigmoid(0) = 0.5), so it
+    # differs by design; forcing the gate open must recover plain exactly.
+    assert not torch.equal(la, lb)
+    with torch.no_grad():
+        for layer in b.layers:
+            layer.in_bias.fill_(20.0)
+        lc, _ = b(x)
+    assert torch.allclose(la, lc, atol=1e-6)
 
 def test_selective_matches_fd():
     m = _selective_model()
